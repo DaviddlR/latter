@@ -82,6 +82,11 @@ scarf_pretraining = function(path_train_data, path_test_data) {
   luz::luz_save(fitted, "scarf_trained.rds")
 
 
+
+
+
+
+
 }
 
 

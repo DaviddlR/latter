@@ -3,6 +3,7 @@
 export(check_if_gpu_available)
 export(create_tensor_dataset)
 export(nt_xent_loss)
+export(prepare_scarf_data)
 export(read_parquet_data)
 export(scarf_encoder)
 export(scarf_pretraining)
