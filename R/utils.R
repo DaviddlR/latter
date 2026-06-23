@@ -9,7 +9,7 @@
 #' check_if_gpu_available()
 check_if_gpu_available <- function() {
 
-  if(cuda_is_available()){
+  if(torch::cuda_is_available()){
     print("Graphic card found :D")
   } else {
     print("Graphic card not found D:")
