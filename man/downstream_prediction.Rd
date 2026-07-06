@@ -37,7 +37,7 @@ A \code{list} containing:
 Obtain predictions of a classifier trained on top of latent representations
 }
 \examples{
-\donttest{
+\dontrun{
 
 if (torch::torch_is_installed()) {
   df_train <- data.frame(

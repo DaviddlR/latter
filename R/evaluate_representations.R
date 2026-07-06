@@ -57,7 +57,7 @@ train_classifier_on_representations = function(df_train, pretrained_model_path, 
   if(doitsmall) {
 
     print("Doing it small...")
-    label_proportion <- 0.01
+    label_proportion <- 0.05
 
     df_train <- df_train |>
       dplyr::group_by(.data[[label_column]]) |>
@@ -79,75 +79,118 @@ train_classifier_on_representations = function(df_train, pretrained_model_path, 
   # Label encoder
   y_train_factor <- as.factor(y_train)
   train_levels <- levels(y_train_factor)  # Have to save train_levels
-  y_train_encoded <- as.integer(y_train_factor)
   print(train_levels)
 
   # y_val_encoded <- as.integer(factor(y_val, levels = train_levels))
 
-  # Set X and Y as tensors
-  features_tensor <- torch::torch_tensor(features, dtype = torch::torch_float())
-  y_train_tensor <- torch::torch_tensor(y_train_encoded, dtype = torch::torch_long())
 
-  # Create dataset and dataloader and validation if required
-  train_ds <- torch::tensor_dataset(features_tensor, y_train_tensor)
 
-  train_dl <- torch::dataloader(
-    train_ds,
-    batch_size = 256,
-    shuffle = TRUE,
-  )
+  # TRAIN MLP
+  if (identical(classification_model_type, "MLP")) {
 
-  val_dl <- NULL  # TODO
+    # Convert factor labels to integer
+    y_train_encoded <- as.integer(y_train_factor)
 
-  # Create and train classification head
-  if(!identical(classification_model_type, "MLP")){
-    stop("train_classifier_on_representations: the classification_model_type is not known. Please use one of these options: MLP")
-  }
+    # Set X and Y as tensors
+    features_tensor <- torch::torch_tensor(features, dtype = torch::torch_float())
+    y_train_tensor <- torch::torch_tensor(y_train_encoded, dtype = torch::torch_long())
 
-  fitted_classification_head <- classifier_network |>
-    luz::setup(
-      loss = torch::nn_cross_entropy_loss(),
-      optimizer = torch::optim_adam,
-    ) |>
-    luz::set_hparams(
-      input_dim = dim(features)[[2]],
-      n_classes = num_classes,
-      dropout = dropout,
-    ) |>
-    luz::set_opt_hparams(
-      lr = 0.0001,
-    ) |>
-    luz::fit(
-      train_dl,
-      epochs = 50,
-      valid_data = val_dl,
+    # Create dataset and dataloader and validation if required
+    train_ds <- torch::tensor_dataset(features_tensor, y_train_tensor)
+
+    train_dl <- torch::dataloader(
+      train_ds,
+      batch_size = 256,
+      shuffle = TRUE,
     )
 
-  print(fitted_classification_head)
+    val_dl <- NULL  # TODO
+
+    # Create and train classification head
+    fitted_classification_head <- classifier_network |>
+      luz::setup(
+        loss = torch::nn_cross_entropy_loss(),
+        optimizer = torch::optim_adam,
+      ) |>
+      luz::set_hparams(
+        input_dim = dim(features)[[2]],
+        n_classes = num_classes,
+        dropout = dropout,
+      ) |>
+      luz::set_opt_hparams(
+        lr = 0.0001,
+      ) |>
+      luz::fit(
+        train_dl,
+        epochs = 50,
+        valid_data = val_dl,
+      )
+
+    print(fitted_classification_head)
 
 
-  # Save classification model and train levels.
+    # Save classification model and train levels.
 
 
-  classifier_weights <- fitted_classification_head$model$state_dict()
+    classifier_weights <- fitted_classification_head$model$state_dict()
 
-  hparams <- list(
-    in_dim = dim(features)[[2]],
-    n_classes = num_classes,
-    dropout = dropout
-  )
+    hparams <- list(
+      in_dim = dim(features)[[2]],
+      n_classes = num_classes,
+      dropout = dropout
+    )
 
-  model_bundle <- list(
-    classifier_state_dict = classifier_weights,
-    classifier_hparams = hparams,
-    levels = serialize(train_levels, NULL),
-    bundle_type = "classifier_bundle"
-  )
-
-  torch::torch_save(model_bundle, path = paste(save_path, ".pt", sep=""))
+    model_bundle <- list(
+      classifier_state_dict = classifier_weights,
+      classifier_hparams = hparams,
+      levels = serialize(train_levels, NULL),
+      bundle_type = "classifier_bundle"
+    )
 
 
+  # TRAIN MODEL USING PARSNIP
+  } else {
 
+    if (!requireNamespace("parsnip", quietly = TRUE)){
+      stop("The 'parsnip' package is not installed. To train the specified classifier you need that package")
+    }
+
+
+    # Create model or use the one provided by the user
+    # TODO: check hyperparameters + validación de librerías?
+    model_definition <- switch (classification_model_type,
+      "Random Forest" = parsnip::rand_forest(mode = "classification", trees = 100) |> parsnip::set_engine("randomForest"),
+      "XGB" = parsnip::boost_tree(mode = "classification") |> parsnip::set_engine("xgboost"),
+      "SVM" = parsnip::svm_rbf(mode = "classification") |> parsnip::set_engine("kernlab"),
+      "KNN" = parsnip::nearest_neighbor(mode = "classification", neighbors = 5) |> parsnip::set_engine("kknn"),
+      "C50" = parsnip::decision_tree(mode = "classification") |> parsnip::set_engine("C5.0"),
+      stop("Classification model not supported. Please, create the model yourself using parsnip and send the object as hyperparameter of this function with 'parsnip_classification_model_object' = your_model'. ")
+    )
+
+
+    # Fit model
+    fitted_model <- model_definition |>
+      parsnip::fit_xy(
+        x = as.data.frame(features),
+        y = y_train_factor
+      )
+
+
+    # Create model bundle to save
+    model_bundle <- list(
+      classifier_model = fitted_model,
+      levels = train_levels,
+      bundle_type = "classifier_bundle"
+    )
+
+
+
+  }
+
+
+  # Save bundle
+
+  torch::torch_save(model_bundle, path = paste0(save_path, ".pt"))
 
 
 
@@ -174,7 +217,7 @@ train_classifier_on_representations = function(df_train, pretrained_model_path, 
 #' @export
 #'
 #' @examples
-#' \donttest{
+#' \dontrun{
 #'
 #' if (torch::torch_is_installed()) {
 #'   df_train <- data.frame(

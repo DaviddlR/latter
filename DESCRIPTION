@@ -28,5 +28,12 @@ Imports:
     coro,
     luz,
     recipes,
-    torch
+    torch,
+    parsnip
 Config/roxygen2/version: 8.0.0
+Suggests: 
+    C50,
+    kernlab,
+    kknn,
+    randomForest,
+    xgboost
