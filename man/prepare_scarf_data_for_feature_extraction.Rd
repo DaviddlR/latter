@@ -9,7 +9,8 @@ prepare_scarf_data_for_feature_extraction(
   trained_recipe,
   exclude_columns = NULL,
   want_labels = FALSE,
-  label_column = NULL
+  label_column = NULL,
+  preprocess = TRUE
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ prepare_scarf_data_for_feature_extraction(
 \item{want_labels}{\code{Boolean}. If \code{TRUE}, the function extracts and returns the target labels alongside features. Default is \code{FALSE}.}
 
 \item{label_column}{\code{String}. Name of the column containing the labels. Required if \code{want_labels = TRUE}. Default is \code{NULL}.}
+
+\item{preprocess}{\code{Boolean}. Set if the data need preprocessing steps using 'recipes', such as 'step_normalize' or 'step_dummy'. Default is \code{TRUE}, meaning that this process is automatically done.}
 }
 \value{
 A torch::matrix representing the dataframe ready for feature extraction

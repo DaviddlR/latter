@@ -8,7 +8,8 @@ prepare_scarf_data(
   dataframe_train,
   exclude_columns = NULL,
   create_validation = FALSE,
-  validation_proportion = 0.1
+  validation_proportion = 0.1,
+  preprocess = TRUE
 )
 }
 \arguments{
@@ -19,6 +20,8 @@ prepare_scarf_data(
 \item{create_validation}{Indicate whether a validation set should be created}
 
 \item{validation_proportion}{Proportion of the training samples that will be used to create the validation set, if required.}
+
+\item{preprocess}{\code{Boolean}. Set if the data need preprocessing steps using 'recipes', such as 'step_normalize' or 'step_dummy'. Default is \code{TRUE}, meaning that this process is automatically done.}
 }
 \value{
 Preprocessed train dataset (and validation set if required) and the recipes::recipe used for preprocessing

@@ -12,13 +12,13 @@ scarf_fit(
   batch_size = 256,
   n_epochs = 1,
   save_path = "SCARF",
-  preprocess = FALSE
+  preprocess = TRUE
 )
 }
 \arguments{
 \item{dataframe_train}{A \code{data.frame} used to train de model.}
 
-\item{exclude_columns}{A \code{string} of columns that the model should ignore during pretraining (i.e target or ID columns). Default is \code{NULL}.}
+\item{exclude_columns}{A \code{character} of columns that the model should ignore during pretraining (i.e target or ID columns). Default is \code{NULL}.}
 
 \item{create_validation}{\code{Boolean}. If \code{TRUE}, splits the training data to create a validation set. Default is \code{FALSE}.}
 
@@ -47,7 +47,9 @@ if (torch::torch_is_installed()) {
     user_id = 1:120,
     age = rnorm(120, mean = 35, sd = 10),
     income = runif(120, 15000, 75000),
-    risk_profile = factor(sample(c("Low", "Medium", "High"), 120, replace = TRUE)),
+    risk_profile = factor(sample(c("Low", "Medium", "High"),
+      120,
+      replace = TRUE)),
     label = sample(0:1, 120, replace = TRUE)
   )
 

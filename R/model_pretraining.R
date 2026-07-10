@@ -5,7 +5,7 @@
 #' Trains a SCARF encoder using a contrastive loss objective. It prepares the data using a recipe, applies random feature corruption and fits the model.
 #'
 #' @param dataframe_train A \code{data.frame} used to train de model.
-#' @param exclude_columns A \code{string} of columns that the model should ignore during pretraining (i.e target or ID columns). Default is \code{NULL}.
+#' @param exclude_columns A \code{character} of columns that the model should ignore during pretraining (i.e target or ID columns). Default is \code{NULL}.
 #' @param create_validation \code{Boolean}. If \code{TRUE}, splits the training data to create a validation set. Default is \code{FALSE}.
 #' @param validation_proportion \code{Numeric}. Proportion of data (0 to 1) allocated for validation if \code{create_validation = TRUE}. Default is \code{0.1}.
 #' @param batch_size \code{Integer}. Number of samples per batch during training. Default is \code{256}.
@@ -26,7 +26,9 @@
 #'     user_id = 1:120,
 #'     age = rnorm(120, mean = 35, sd = 10),
 #'     income = runif(120, 15000, 75000),
-#'     risk_profile = factor(sample(c("Low", "Medium", "High"), 120, replace = TRUE)),
+#'     risk_profile = factor(sample(c("Low", "Medium", "High"),
+#'       120,
+#'       replace = TRUE)),
 #'     label = sample(0:1, 120, replace = TRUE)
 #'   )
 #'
@@ -46,16 +48,15 @@
 #' }
 #' }
 #'
-scarf_fit = function(dataframe_train, exclude_columns = NULL, create_validation = FALSE, validation_proportion = 0.1, batch_size = 256, n_epochs = 1, save_path = "SCARF", preprocess = FALSE) {
+scarf_fit = function(dataframe_train, exclude_columns = NULL, create_validation = FALSE, validation_proportion = 0.1, batch_size = 256, n_epochs = 1, save_path = "SCARF", preprocess = TRUE) {
 
 
-  # TODO: arreglar esto con el preprocess
   # Load and preprocess data
-  preprocessed_datasets <- prepare_scarf_data(dataframe_train, exclude_columns = exclude_columns, create_validation = create_validation, validation_proportion = validation_proportion)
+  preprocessed_datasets <- prepare_scarf_data(dataframe_train, exclude_columns = exclude_columns, create_validation = create_validation, validation_proportion = validation_proportion, preprocess = preprocess)
 
   x_train <- preprocessed_datasets$train_set
-  x_val <- preprocessed_datasets$val_set
-  recipe <- preprocessed_datasets$recipe
+  x_val <- preprocessed_datasets$val_set  # May be null
+  recipe <- preprocessed_datasets$recipe  # May be null
 
   # Create training dataset and dataloader
   train_ds <- create_tensor_dataset(x_train)

@@ -6,6 +6,7 @@
 #' @param want_labels \code{Boolean}. If \code{TRUE}, the function extracts and returns the target labels alongside features. Default is \code{FALSE}.
 #' @param label_column \code{String}. Name of the column containing the labels. Required if \code{want_labels = TRUE}. Default is \code{NULL}.
 #' @param batch_size batch_size \code{integer}. Number of samples per batch during feature extraction. Default is \code{32}.
+#' @param preprocess \code{Boolean} Set if the data need preprocessing steps using 'recipes', such as 'step_normalize' or 'step_dummy'. Default is \code{TRUE}, meaning that this process is automatically done.
 #'
 #' @returns A \code{list} containing two elements:
 #' \itemize{
@@ -52,7 +53,7 @@
 #' if (file.exists(tmp_path)) file.remove(tmp_path)
 #'
 #' }
-scarf_feature_extractor = function(dataframe, pretrained_model, exclude_columns = NULL, want_labels = FALSE, label_column = NULL, batch_size = 32) {
+scarf_feature_extractor = function(dataframe, pretrained_model, exclude_columns = NULL, want_labels = FALSE, label_column = NULL, batch_size = 32, preprocess = TRUE) {
 
   # Extract pretrained model and recipe
   bundle <- load_scarf_bundle(pretrained_model)
@@ -67,9 +68,11 @@ scarf_feature_extractor = function(dataframe, pretrained_model, exclude_columns 
     stop("scarf_feature_extractor: if 'want_labels' is TRUE, then you have to specify the label column with the parameter 'label_column'")
   }
 
-  dataframe_cleaned_xy <- prepare_scarf_data_for_feature_extraction(dataframe, trained_recipe, exclude_columns, want_labels = want_labels, label_column = label_column)
+
+  dataframe_cleaned_xy <- prepare_scarf_data_for_feature_extraction(dataframe, trained_recipe, exclude_columns, want_labels = want_labels, label_column = label_column, preprocess = preprocess)
   dataframe_cleaned <- dataframe_cleaned_xy$x
   dataframe_labels <- dataframe_cleaned_xy$y
+
 
   dataset_ready <- create_tensor_dataset(dataframe_cleaned)
 
