@@ -64,13 +64,14 @@ step_extract_latent <- function(
   # want_labels = FALSE,
   # label_column = NULL,
   batch_size_inference = 32,
-  pretrained_model = NULL,
+  pretrained_model = NULL,  # Pretrained model to extract features after prep
+  columns = NULL,  # Columns to be processed
   skip = FALSE,  # Skip and ID last arguments
-  id = rand_id("extract_latent")
+  id = recipes::rand_id("extract_latent")
 
   ) {
     # Add step
-    add_step(
+    recipes::add_step(
       recipe,
       step_extract_latent_new(
         subclass = "extract_latent",
@@ -84,6 +85,7 @@ step_extract_latent <- function(
         epochs = epochs,
         batch_size_inference = batch_size_inference,
         pretrained_model = pretrained_model,
+        columns = columns,
         skip = skip,
         id = id
       )
@@ -95,7 +97,8 @@ step_extract_latent <- function(
 
 
 # Constructor
-step_extract_latent_new <- function(terms,
+step_extract_latent_new <- function(subclass,
+                                    terms,
                                     role,
                                     trained,
                                     pretraining_type,
@@ -105,9 +108,11 @@ step_extract_latent_new <- function(terms,
                                     epochs,
                                     batch_size_inference,
                                     pretrained_model,
+                                    columns,
                                     skip,
                                     id) {
   recipes::step(
+    subclass = subclass,
     terms = terms,
     role = role,
     trained = trained,
@@ -118,6 +123,7 @@ step_extract_latent_new <- function(terms,
     epochs = epochs,
     batch_size_inference = batch_size_inference,
     pretrained_model = pretrained_model,
+    columns = columns,
     skip = skip,
     id = id
   )
@@ -149,12 +155,13 @@ prep.step_extract_latent <- function(x, training, info = NULL, ...) {
     batch_size = x$batch_size,
     n_epochs = x$epochs,
     save_path = NULL,  # Force NULL so that the model is stored in RAM, ready for bake and avoiding the need to store it locally.
-    preprocess = FALSE,  # FALSE so that it does not apply other preprocessing recipes. Assume that the user does it.
+    preprocess = FALSE  # FALSE so that it does not apply other preprocessing recipes. Assume that the user does it.
   )
 
 
   # Use the constructor function to return the updated object.
   step_extract_latent_new(
+    subclass = "extract_latent",
     terms = x$terms,
     role = x$role,
     trained = TRUE,  # As prep is completed, we set trained to TRUE
@@ -165,6 +172,7 @@ prep.step_extract_latent <- function(x, training, info = NULL, ...) {
     epochs = x$epochs,
     batch_size_inference = x$batch_size_inference,
     pretrained_model = pretrained_SCARF,  # Store the pretrained model
+    columns = col_names,
     skip = x$skip,
     id = x$id
   )
@@ -178,8 +186,9 @@ prep.step_extract_latent <- function(x, training, info = NULL, ...) {
 #' @importFrom recipes bake
 #' @export
 bake.step_extract_latent <- function(object, new_data, ...) {
-  col_names <- recipes::recipes_eval_select(object$terms, new_data, info)  # Select columns that the user listed
-  data_to_extract <- as.data.frame(new_data[, col_names])
+
+  col_names <- object$columns  # Select columns that the user listed
+  data_to_extract <- as.data.frame(new_data[, col_names], drop = FALSE)
 
   # Bake logic. Apply the pretrained model to new data
   extracted_data <- scarf_feature_extractor(
@@ -188,7 +197,8 @@ bake.step_extract_latent <- function(object, new_data, ...) {
     exclude_columns = NULL,
     want_labels = FALSE,
     label_column = NULL,
-    batch_size = object$batch_size_inference
+    batch_size = object$batch_size_inference,
+    preprocess = FALSE
   )
 
 

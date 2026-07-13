@@ -53,7 +53,15 @@
 #' if (file.exists(tmp_path)) file.remove(tmp_path)
 #'
 #' }
-scarf_feature_extractor = function(dataframe, pretrained_model, exclude_columns = NULL, want_labels = FALSE, label_column = NULL, batch_size = 32, preprocess = TRUE) {
+scarf_feature_extractor = function(
+    dataframe,
+    pretrained_model,
+    exclude_columns = NULL,
+    want_labels = FALSE,
+    label_column = NULL,
+    batch_size = 32,
+    preprocess = TRUE
+  ) {
 
   # Extract pretrained model and recipe
   bundle <- load_scarf_bundle(pretrained_model)

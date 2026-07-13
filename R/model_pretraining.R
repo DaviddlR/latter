@@ -48,7 +48,16 @@
 #' }
 #' }
 #'
-scarf_fit = function(dataframe_train, exclude_columns = NULL, create_validation = FALSE, validation_proportion = 0.1, batch_size = 256, n_epochs = 1, save_path = "SCARF", preprocess = TRUE) {
+scarf_fit = function(
+  dataframe_train,
+  exclude_columns = NULL,
+  create_validation = FALSE,
+  validation_proportion = 0.1,
+  batch_size = 256,
+  n_epochs = 1,
+  save_path = "SCARF",
+  preprocess = TRUE
+) {
 
 
   # Load and preprocess data
@@ -87,10 +96,10 @@ scarf_fit = function(dataframe_train, exclude_columns = NULL, create_validation 
       num_hidden = 4,
       head_hidden_dim = 256,
       head_num_hidden = 2,
-      dropout = 0.0,
+      dropout = 0.0
     ) |>
     luz::set_opt_hparams(
-      lr = 0.0001,
+      lr = 0.0001
     ) |>
     luz::fit(
       train_dl,
