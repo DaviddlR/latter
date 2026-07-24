@@ -129,6 +129,16 @@ prepare_scarf_data = function(dataframe_train, exclude_columns = NULL, create_va
     # Optimize recipe by removing unnecessary data (butcher package)
     optimized_recipe <- butcher::butcher(trained_recipe)
   } else {
+
+
+    # OPCION PARA GESTIONAR ONE HOT ENCODING
+    # Se le pide al usuario que haga OHE simple, como lo tengo definido en "small_tests.R"
+    # Al hacerlo simple, sin modificar los nombres de columnas o usar otro método OHE, podemos usar la función
+    # "utils > get_feature_groups" exactamente igual que hago arriba, solo que "clean_colnames" me lo
+    # pasaría el usuario al definir el recipe
+
+
+
     x_train <- as.matrix(x_train)
 
     if (create_validation){
