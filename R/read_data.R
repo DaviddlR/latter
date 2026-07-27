@@ -83,15 +83,22 @@ prepare_scarf_data = function(dataframe_train, exclude_columns = NULL, create_va
 
   optimized_recipe = NULL
 
+  # print("cat")
+  # print(cat_cols)
+  # print("num")
+  # print(num_cols)
+
   # Preprocessing with recipes
   if (preprocess) {
     # We are not inside a recipe workflow, so we prep and bake required preprocessing steps
-    # One hot encoding + standard scaler
+    # Standard scaler + transform categorical values to integer
     rec <- recipes::recipe(~ ., data=x_train)
 
+    # Could I normalize without step_normalize and avoid recipes ??
     rec <- recipes::step_novel(rec, recipes::all_nominal_predictors(), new_level = "unknown") |>  # New categorical levels (should not be used)
-      recipes::step_normalize(recipes::all_numeric_predictors()) |>  # Standard normalization
-      recipes::step_dummy(recipes::all_nominal_predictors(), one_hot = TRUE)  # One-hot encoding
+      recipes::step_normalize(recipes::all_numeric_predictors())  # Standard normalization
+      # recipes::step_integer(recipes::all_nominal_predictors(), zero_based = FALSE)
+      # recipes::step_dummy(recipes::all_nominal_predictors(), one_hot = TRUE)  # One-hot encoding
 
 
     # Fit recipe to training set
@@ -99,6 +106,12 @@ prepare_scarf_data = function(dataframe_train, exclude_columns = NULL, create_va
 
     # Apply preprocessing to train and create matrix
     x_train_processed <- recipes::bake(trained_recipe, new_data = x_train)
+
+    # Use private function to transform categorical data into integers
+    info_categorical <- encode_categorical_data(x_train_processed)
+    x_train_processed <- info_categorical$data_processed
+    metadata_for_cat <- info_categorical$metadata_for_cat
+
     x_train <- as.matrix(x_train_processed)
 
 
@@ -106,6 +119,9 @@ prepare_scarf_data = function(dataframe_train, exclude_columns = NULL, create_va
     # Bake validation set (if exists)
     if(create_validation){
       x_val_processed <- recipes::bake(trained_recipe, new_data = x_val)
+      info_categorical_val <- encode_categorical_data(x_val_processed, metadata_for_cat)  # do not create new metadata
+      x_val_processed <- info_categorical_val$data_processed
+
       x_val <- as.matrix(x_val_processed)
     }
 
@@ -118,10 +134,23 @@ prepare_scarf_data = function(dataframe_train, exclude_columns = NULL, create_va
 
     # Optimize recipe by removing unnecessary data (butcher package)
     optimized_recipe <- butcher::butcher(trained_recipe)
+
+
   } else {
+
+    # Use private function to transform categorical data into integers
+    info_categorical <- encode_categorical_data(x_train)
+    x_train <- info_categorical$data_processed
+    metadata_for_cat <- info_categorical$metadata_for_cat
+
+    x_train <- as.matrix(x_train)
     x_train <- as.matrix(x_train)
 
     if (create_validation){
+      info_categorical_val <- encode_categorical_data(x_val, metadata_for_cat)
+      x_val <- info_categorical_val$data_processed
+
+      x_val <- as.matrix(x_val)
       x_val <- as.matrix(x_val)
     }
   }

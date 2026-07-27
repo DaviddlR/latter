@@ -126,4 +126,96 @@ create_validation_set = function(x, validation_proportion) {
 
 
 
+# Get information about categorical variables for transforming them to integers.
+# If metadata is null, the method collect it from the training set. Else, it uses
+# the metadata to transform new data (validation and test)
+encode_categorical_data = function(data, metadata = NULL) {
+
+  # If metadata is null, create it from data (should be training dataset)
+  if (is.null(metadata)) {
+    # Identify categorical and numerical columns
+    cat_cols <- names(data)[sapply(data, function(col) is.factor(col) || is.character(col))]
+    num_cols <- setdiff(names(data), cat_cols)
+
+    cat_levels <- list()  # For each categorical column, a vector with its different possible values
+    cat_dims <- integer()  # For each categorical column, an integer indicating the number of possible values
+
+    # Get levels
+    for (i in seq_along(cat_cols)) {
+      col <- cat_cols[i]
+
+      lvls <- if (is.factor(data[[col]])) levels(data[[col]]) else unique(training_data[[col]])
+      cat_levels[[col]] <- lvls
+      cat_dims[[col]] <- length(lvls)
+    }
+
+    # Store metadata
+    metadata <- list(
+      cat_cols = cat_cols,
+      num_cols = num_cols,
+      cat_levels = cat_levels,
+      cat_dims = cat_dims
+    )
+  }
+
+
+  # Transform data using the metadata from the training set
+  data_processed <- data
+
+  for (col in metadata$cat_cols) {
+    known_levels <- metadata$cat_levels[[col]]
+
+    possible_integer <- as.integer(factor(data_processed[[col]], levels = known_levels))
+
+    # Manage unknown categories
+    possible_integer[is.na(possible_integer)] <- length(known_levels) + 1
+    data_processed[[col]] <- possible_integer
+
+    print(data[[col]])
+    print(data_processed[[col]])
+  }
+
+  # Reorder the data so that numerical columns appear first
+  data_processed <- dplyr::relocate(data_processed, dplyr::all_of(num_cols), dplyr::all_of(cat_cols))
+
+  return(list(
+    "data_processed" = data_processed,
+    "metadata_for_cat" = metadata
+  ))
+
+  # print(cat_levels)
+  # print(cat_dims)
+
+  # Transform categorical values to integer --
+  # data_processed <- data
+  #
+  # for (col in cat_cols) {
+  #   data_processed[[col]] <- as.integer(factor(data_processed[[col]], levels = cat_levels[[col]]))
+  #
+  #   # print(data[[col]])
+  #   # print(data_processed[[col]])
+  # }
+  #
+  # # Order the data so that numerical columns appear first
+  # data_processed <- dplyr::relocate(data_processed, dplyr::all_of(num_cols), dplyr::all_of(cat_cols))
+  #
+  # return (data_processed)
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 

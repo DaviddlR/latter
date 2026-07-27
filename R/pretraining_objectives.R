@@ -42,6 +42,8 @@ scarf_fit = function(
                          shuffle=FALSE)
   }
 
+
+
   fitted <- SCARF_wrapper |>
     luz::setup(
       loss = nt_xent_loss(temperature = 0.5),
