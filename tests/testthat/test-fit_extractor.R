@@ -34,7 +34,7 @@ test_that("fit_extractor with SCARF works and outputs correct structure", {
 
   # Check invisible return (for recipes)
   expect_type(res, "list")
-  expect_named(res, c("encoder_state_dict", "encoder_hparams", "recipe", "bundle_type"))
+  expect_named(res, c("encoder_state_dict", "encoder_hparams", "metadata_for_cat", "recipe", "bundle_type"))
   expect_equal(res$bundle_type, "scarf_bundle")
 
   # Save_path = something, so it saves file locally

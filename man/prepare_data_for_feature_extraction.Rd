@@ -7,6 +7,7 @@
 prepare_data_for_feature_extraction(
   dataframe,
   trained_recipe,
+  categorical_metadata,
   exclude_columns = NULL,
   want_labels = FALSE,
   label_column = NULL,
@@ -17,6 +18,8 @@ prepare_data_for_feature_extraction(
 \item{dataframe}{Dataframe for feature extraction}
 
 \item{trained_recipe}{Trained recipes::recipe for preprocessing}
+
+\item{categorical_metadata}{Metadata and parameters needed to transform categorical data}
 
 \item{exclude_columns}{A \code{string} of columns that the model should ignore (i.e target or ID columns). Default is \code{NULL}.}
 

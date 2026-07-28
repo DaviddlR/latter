@@ -8,13 +8,14 @@
 #'
 #' @param dataframe Dataframe for feature extraction
 #' @param trained_recipe Trained recipes::recipe for preprocessing
+#' @param categorical_metadata Metadata and parameters needed to transform categorical data
 #' @param exclude_columns A \code{string} of columns that the model should ignore (i.e target or ID columns). Default is \code{NULL}.
 #' @param want_labels \code{Boolean}. If \code{TRUE}, the function extracts and returns the target labels alongside features. Default is \code{FALSE}.
 #' @param label_column \code{String}. Name of the column containing the labels. Required if \code{want_labels = TRUE}. Default is \code{NULL}.
 #' @param preprocess \code{Boolean}. Set if the data need preprocessing steps using 'recipes', such as 'step_normalize' or 'step_dummy'. Default is \code{TRUE}, meaning that this process is automatically done.
 #'
 #' @returns A torch::matrix representing the dataframe ready for feature extraction
-prepare_data_for_feature_extraction = function(dataframe, trained_recipe, exclude_columns = NULL, want_labels = FALSE, label_column = NULL, preprocess = TRUE) {
+prepare_data_for_feature_extraction = function(dataframe, trained_recipe, categorical_metadata, exclude_columns = NULL, want_labels = FALSE, label_column = NULL, preprocess = TRUE) {
   df_extract <- as.data.frame(dataframe)
 
   # Get label if needed
@@ -30,9 +31,20 @@ prepare_data_for_feature_extraction = function(dataframe, trained_recipe, exclud
   if (preprocess){
     # Apply preprocessing to the dataset using the trained recipe and create matrix
     x_extract_processed <- recipes::bake(trained_recipe, new_data = x_extract)
+
+
+    # Transform categorical data to integers
+    info_categorical <- encode_categorical_data(x_extract_processed, metadata = categorical_metadata)
+    x_extract_processed <- info_categorical$data_processed
+
+
     x_extract_mat <- as.matrix(x_extract_processed)
   } else {
     # Inside a recipe flow. Preprocessing is already done
+    # Transform categorical data to integers
+    info_categorical <- encode_categorical_data(x_extract, metadata = categorical_metadata)
+    x_extract <- info_categorical$data_processed
+
     x_extract_mat <- as.matrix(x_extract)
   }
 
@@ -144,20 +156,19 @@ prepare_scarf_data = function(dataframe_train, exclude_columns = NULL, create_va
     metadata_for_cat <- info_categorical$metadata_for_cat
 
     x_train <- as.matrix(x_train)
-    x_train <- as.matrix(x_train)
 
     if (create_validation){
       info_categorical_val <- encode_categorical_data(x_val, metadata_for_cat)
       x_val <- info_categorical_val$data_processed
 
       x_val <- as.matrix(x_val)
-      x_val <- as.matrix(x_val)
     }
   }
 
   return (list("train_set" = x_train,
                "val_set" = x_val,
-               "recipe" = optimized_recipe))
+               "recipe" = optimized_recipe,
+               "metadata_for_cat" = metadata_for_cat))
 
 }
 

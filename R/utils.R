@@ -31,7 +31,8 @@ load_bundle = function(bundle_path, pretraining_type = "SCARF") {
 
     # Create a new encoder
     fitted_encoder <- scarf_encoder(
-      in_dim = hparams$in_dim,
+      num_cont = hparams$num_cont,
+      cat_dims = hparams$cat_dims,
       hidden_dim = hparams$hidden_dim,
       num_hidden = hparams$num_hidden,
       dropout = hparams$dropout
@@ -176,7 +177,7 @@ encode_categorical_data = function(data, metadata = NULL) {
   }
 
   # Reorder the data so that numerical columns appear first
-  data_processed <- dplyr::relocate(data_processed, dplyr::all_of(num_cols), dplyr::all_of(cat_cols))
+  data_processed <- dplyr::relocate(data_processed, dplyr::all_of(metadata$num_cols), dplyr::all_of(metadata$cat_cols))
 
   return(list(
     "data_processed" = data_processed,

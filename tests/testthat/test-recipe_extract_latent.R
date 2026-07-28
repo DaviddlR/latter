@@ -4,6 +4,7 @@ create_dummy_data <- function() {
     num1 = rnorm(20),
     num2 = runif(20),
     num3 = rnorm(20, mean = 5),
+    cat1 = factor(sample(c("a", "b", "c", "d"), 20, replace = TRUE)),
     target = factor(sample(c("a", "b"), 20, replace = TRUE))
   )
 }
@@ -20,7 +21,7 @@ test_that("step_extract_latent integrates with recipes pipeline, prep and bake",
   recipe <- recipes::recipe(target ~ ., data = df_train) |>
     recipes::update_role(id, new_role = "id") |>
     step_extract_latent(
-      recipes::all_numeric_predictors(),
+      recipes::all_predictors(),
       pretraining_type = "SCARF",
       epochs = 1,
       batch_size = 8,
@@ -38,7 +39,7 @@ test_that("step_extract_latent integrates with recipes pipeline, prep and bake",
 
 
   expect_true(trained_step$trained)  # Check trained
-  expect_equal(unname(trained_step$columns), c("num1", "num2", "num3"))  # Check processed columns
+  expect_equal(unname(trained_step$columns), c("num1", "num2", "num3", "cat1"))  # Check processed columns
   expect_equal(trained_step$pretrained_model$bundle_type, "scarf_bundle")  # Check pretrained model is stored
 
   # Bake
@@ -63,8 +64,8 @@ test_that("tidy method works before and after prep", {
 
   df <- create_dummy_data()
 
-  rec <- recipes::recipe(target ~ num1 + num2, data = df) |>
-    step_extract_latent(num1, num2, epochs = 1, batch_size = 8)
+  rec <- recipes::recipe(target ~ num1 + num2 + cat1, data = df) |>
+    step_extract_latent(num1, num2, cat1, epochs = 1, batch_size = 8)
 
   # untrained tidy
   tidy_unprepped <- generics::tidy(rec, number = 1)
@@ -77,7 +78,7 @@ test_that("tidy method works before and after prep", {
   tidy_prepped <- generics::tidy(prepped_rec, number = 1)
 
   expect_s3_class(tidy_prepped, "tbl_df")
-  expect_equal(unname(tidy_prepped$terms), c("num1", "num2"))
+  expect_equal(unname(tidy_prepped$terms), c("num1", "num2", "cat1"))
 })
 
 
@@ -90,7 +91,7 @@ test_that("print and required_pkgs methods work as expected", {
 
   rec <- recipes::recipe(target ~ ., data = df) |>
     step_extract_latent(
-      recipes::all_numeric_predictors(),
+      recipes::all_predictors(),
       pretraining_type = "SCARF",
       epochs = 1,
       batch_size = 8,

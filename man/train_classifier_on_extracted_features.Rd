@@ -13,6 +13,7 @@ train_classifier_on_extracted_features(
   exclude_columns = NULL,
   parsnip_classification_model = NULL,
   classification_model_type = NULL,
+  n_epochs = 50,
   dropout = 0.2,
   doitsmall = FALSE,
   save_path = "classifier"
@@ -35,9 +36,11 @@ train_classifier_on_extracted_features(
 
 \item{classification_model_type}{\code{String}. Type of architecture to train. Currently, \code{"MLP", "Random Forest", "XGB", "KNN", "SVM" and "C50"} are supported. Default is \code{NULL}.}
 
+\item{n_epochs}{\code{Integer}. Number of training epochs if classification_model_type is 'MLP'. Default is \code{50}.}
+
 \item{dropout}{\code{Numeric}. Dropout probability for the classification layers. Default is \code{0.2}.}
 
-\item{doitsmall}{\code{Boolean}. If \code{TRUE}, sub-samples the training set to 1\% for quick experimentation. Default is \code{FALSE}.}
+\item{doitsmall}{\code{Boolean}. If \code{TRUE}, sub-samples the training set to 5\% for quick experimentation. Default is \code{FALSE}.}
 
 \item{save_path}{\code{String}. Path where the trained classifier bundle (.pt) will be saved. Extension ('.pt') should not be included. Default is \code{"classifier"}, which saves a 'classifier.pt' file in the current directory.}
 }

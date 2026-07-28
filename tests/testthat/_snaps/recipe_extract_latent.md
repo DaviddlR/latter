@@ -9,8 +9,8 @@
       -- Inputs 
       Number of variables by role
       outcome:   1
-      predictor: 4
+      predictor: 5
       
       -- Operations 
-      * Latent feature extraction with SCARF: recipes::all_numeric_predictors()
+      * Latent feature extraction with SCARF: recipes::all_predictors()
 

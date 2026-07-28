@@ -9,6 +9,7 @@ classification_setup <- function() {
     id = 1:40,
     v1 = rnorm(40),
     v2 = runif(40),
+    cat1 = factor(sample(c("a", "b"), 20, replace = TRUE)),
     target = factor(sample(c("a", "b"), 40, replace = TRUE))
   )
 

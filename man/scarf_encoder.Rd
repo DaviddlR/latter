@@ -4,10 +4,18 @@
 \alias{scarf_encoder}
 \title{Basic encoder module.}
 \usage{
-scarf_encoder(in_dim, hidden_dim = 256, num_hidden = 4, dropout = 0)
+scarf_encoder(
+  num_cont,
+  cat_dims,
+  hidden_dim = 256,
+  num_hidden = 4,
+  dropout = 0
+)
 }
 \arguments{
-\item{in_dim}{Number of input features.}
+\item{num_cont}{Number of numerical features.}
+
+\item{cat_dims}{Number of dimensions per categorical column.}
 
 \item{hidden_dim}{Number of hidden or latent features.}
 

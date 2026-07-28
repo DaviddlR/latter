@@ -76,6 +76,7 @@ extract_features = function(
   # Extract encoder and recipe (if exists)
   fitted_encoder <- bundle$encoder
   trained_recipe <- bundle$recipe
+  metadata_for_categorical <- bundle$metadata_for_cat
 
   # Prepare data
   if (want_labels & is.null(label_column)) {
@@ -83,7 +84,7 @@ extract_features = function(
   }
 
 
-  dataframe_cleaned_xy <- prepare_data_for_feature_extraction(dataframe, trained_recipe, exclude_columns, want_labels = want_labels, label_column = label_column, preprocess = preprocess)
+  dataframe_cleaned_xy <- prepare_data_for_feature_extraction(dataframe, trained_recipe, categorical_metadata = metadata_for_categorical, exclude_columns = exclude_columns, want_labels = want_labels, label_column = label_column, preprocess = preprocess)
   dataframe_cleaned <- dataframe_cleaned_xy$x
   dataframe_labels <- dataframe_cleaned_xy$y
 

@@ -1,6 +1,6 @@
 Package: latter
 Type: Package
-Title: Train, use and evaluate Self-Supervised models on a given dataset.
+Title: Train, use and evaluate Self-Supervised models on a given dataset
 Version: 1.0.0
 Authors@R: c(
     person(

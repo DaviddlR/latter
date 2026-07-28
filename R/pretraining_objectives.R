@@ -23,6 +23,7 @@ scarf_fit = function(
   x_train <- preprocessed_datasets$train_set
   x_val <- preprocessed_datasets$val_set  # May be null
   recipe <- preprocessed_datasets$recipe  # May be null
+  metadata_for_cat <- preprocessed_datasets$metadata_for_cat
 
   # Create training dataset and dataloader
   train_ds <- create_tensor_dataset(x_train)
@@ -50,7 +51,8 @@ scarf_fit = function(
       optimizer = torch::optim_adam
     ) |>
     luz::set_hparams(
-      in_dim = dim(x_train)[2],
+      num_cont = length(metadata_for_cat$num_cols),
+      cat_dims = metadata_for_cat$cat_dims,
       hidden_dim = 256,
       num_hidden = 4,
       head_hidden_dim = 256,
@@ -73,7 +75,8 @@ scarf_fit = function(
   encoder_weights <- fitted$model$main_encoder$state_dict()
 
   hparams <- list(
-    in_dim = dim(x_train)[2],
+    num_cont = length(metadata_for_cat$num_cols),
+    cat_dims = metadata_for_cat$cat_dims,
     hidden_dim = 256,
     num_hidden = 4,
     dropout = 0.0
@@ -82,6 +85,7 @@ scarf_fit = function(
   model_bundle <- list(
     encoder_state_dict = encoder_weights,
     encoder_hparams = hparams,
+    metadata_for_cat = metadata_for_cat,
     recipe = serialize(recipe, NULL),
     bundle_type = "scarf_bundle"
   )
