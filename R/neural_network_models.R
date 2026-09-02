@@ -212,7 +212,7 @@ SCARF_wrapper <- torch::nn_module(  # Something like SCARF lightning but we do n
   forward = function(x_input) {  # Here it comes a list with (original sample, corrupted sample). See luz callback
 
 
-    # Take original and corrupted sample
+    # Take original and corrupted sample (see callback SCARF)
     x_original <- x_input[[1]]
     x_corrupted <- x_input[[2]]
 

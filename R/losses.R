@@ -1,4 +1,21 @@
-#' Title
+
+vime_loss <- torch::nn_module(
+  name = "vime_loss",
+
+  initialize = function() {
+    # Check si se necesita algún parámetro para ajustar
+  },
+
+  forward = function(input, target) {
+    # TODO
+  }
+)
+
+
+
+
+
+#' Contrastive loss nt_xent_loss
 #'
 #' @param temperature Controls how sharply the model discriminates between hard and easy negative examples
 #'
@@ -11,7 +28,7 @@ nt_xent_loss <- torch::nn_module(
     self$temperature = temperature
   },
 
-  forward = function(input, target) {  # TODO: corregir esto según lo que sale de callback
+  forward = function(input, target) {
 
     # Get z_i and z_j
     z_i <- input[[1]]

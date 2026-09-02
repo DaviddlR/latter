@@ -60,17 +60,31 @@ fit_extractor <- function (
 ) {
 
 
-
+  # Go to pretraining_objectives.R
   if (identical(pretraining_type, "SCARF")) {
     # SCARF pretraining
-    scarf_bundle <- scarf_fit(dataframe_train = dataframe_train,
-              exclude_columns = exclude_columns,
-              create_validation = create_validation,
-              validation_proportion = validation_proportion,
-              batch_size = batch_size,
-              n_epochs = n_epochs,
-              preprocess = preprocess
+    scarf_bundle <- scarf_fit(
+      dataframe_train = dataframe_train,
+      exclude_columns = exclude_columns,
+      create_validation = create_validation,
+      validation_proportion = validation_proportion,
+      batch_size = batch_size,
+      n_epochs = n_epochs,
+      preprocess = preprocess
     )
+  } else if (identical(pretraining_type, "VIME")) {
+    # VIME pretraining
+    vime_bundle <- vime_fit(
+      dataframe_train = dataframe_train,
+      exclude_columns = exclude_columns,
+      create_validation = create_validation,
+      validation_proportion = validation_proportion,
+      batch_size = batch_size,
+      n_epochs = n_epochs,
+      preprocess = preprocess
+    )
+
+
   } else {
     stop("The selected 'pretraining_type' is not supported. Please select one of the available options: 'SCARF'")
   }

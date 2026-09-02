@@ -1,4 +1,122 @@
 
+############ VIME PRETRAINING ############
+vime_fit = function(
+    dataframe_train,
+    exclude_columns = NULL,
+    create_validation = FALSE,
+    validation_proportion = 0.1,
+    batch_size = 256,
+    n_epochs = 1,
+    preprocess = TRUE
+) {
+
+  # Load and preprocess data
+
+  # Create training dataset and dataloader
+
+  # Create validation dataset and dataloader (if required)
+
+
+  # Create luz wrapper
+
+
+  # Save trained model AND the recipe required to apply the same preprocessing to the test set
+
+}
+
+
+
+custom_vime_step_callback <- luz::luz_callback(
+
+  name = "VIME_custom_steps",
+
+  initialize = function(corruption_rate = 0.6) {
+    self$corruption_rate = corruption_rate
+  },
+
+  # Train. It receives a batch from the dataloader / tensor_dataset
+  on_train_batch_begin = function() {
+
+    #print(ctx$batch[[1]]$device)
+
+    batch <- ctx$batch
+    #target <- batch$y  # Label. Not used during pre-training
+
+    x <- batch$x  # Data
+
+    batch_size <- x$size(1)
+    num_features <- x$size(2)
+
+    mask <- torch::torch_rand_like(x) < self$corruption_rate
+
+    random_indices <- torch::torch_randint(
+      low = 1,
+      high = batch_size + 1,  # 1 and +1 because R indices start at 1
+      size = c(batch_size, num_features),
+      device = x$device,
+      dtype = torch::torch_long()
+    )
+
+    x_random <- torch::torch_gather(x, dim=1, index = random_indices)
+
+    x_corrupted <- torch::torch_where(mask, x_random, x)
+
+
+    # Binary mask to float (0.0 , 1.0)
+    mask_target <- mask$to(dtype = torch::torch_float())
+
+
+    ctx$input <- x_corrupted  # Input for the forward method and "input" variable in the loss function
+    ctx$target <- c(mask_target, x)  # Input for the "target" variable in the loss function. Not needed during forward
+
+
+
+
+  },
+
+
+  # Validation
+  on_valid_batch_begin = function() {
+    #print(ctx$batch[[1]]$device)
+
+    batch <- ctx$batch
+    #target <- batch$y  # Label. Not used during pre-training
+
+    x <- batch$x  # Data
+
+    batch_size <- x$size(1)
+    num_features <- x$size(2)
+
+    mask <- torch::torch_rand_like(x) < self$corruption_rate
+
+    random_indices <- torch::torch_randint(
+      low = 1,
+      high = batch_size + 1,  # 1 and +1 because R indices start at 1
+      size = c(batch_size, num_features),
+      device = x$device,
+      dtype = torch::torch_long()
+    )
+
+    x_random <- torch::torch_gather(x, dim=1, index = random_indices)
+
+    x_corrupted <- torch::torch_where(mask, x_random, x)
+
+
+    # Binary mask to float (0.0 , 1.0)
+    mask_target <- mask$to(dtype = torch::torch_float())
+
+
+    ctx$input <- x_corrupted  # Input for the forward method and "input" variable in the loss function
+    ctx$target <- c(mask_target, x)  # The "target" variable in the loss function. Not needed during forward
+
+  },
+
+
+  # Test / predict
+
+)
+
+
 
 
 
@@ -32,7 +150,7 @@ scarf_fit = function(
                          batch_size = batch_size,
                          shuffle = TRUE)
 
-  # Create training dataset and dataloader (if required)
+  # Create validation dataset and dataloader (if required)
   val_dl <- NULL
 
   if(create_validation) {
@@ -194,7 +312,6 @@ custom_scarf_step_callback <- luz::luz_callback(
 
 
 
-############ VIME PRETRAINING ############
 
 
 
