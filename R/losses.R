@@ -8,6 +8,11 @@ vime_loss <- torch::nn_module(
 
   forward = function(input, target) {
     # TODO
+
+
+
+    # Las variables originales están desordenadas con respecto a lo que viene en target (numerical primero y categorical despues)
+    # Habrá que reorganizar las de original antes de hacer la loss (check utils > encode_categorical_data)
   }
 )
 

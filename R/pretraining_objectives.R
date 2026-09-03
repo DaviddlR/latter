@@ -11,18 +11,42 @@ vime_fit = function(
 ) {
 
   # Load and preprocess data
+  preprocessed_datasets <- prepare_data(dataframe_train, exclude_columns = exclude_columns, create_validation = create_validation, validation_proportion = validation_proportion, preprocess = preprocess)
+
+  x_train <- preprocessed_datasets$train_set
+  x_val <- preprocessed_datasets$val_set  # May be null
+  recipe <- preprocessed_datasets$recipe  # May be null
+  metadata_for_cat <- preprocessed_datasets$metadata_for_cat
 
   # Create training dataset and dataloader
+  train_ds <- create_tensor_dataset(x_train)
+
+  train_dl <- torch::dataloader(train_ds,
+                                batch_size = batch_size,
+                                shuffle = TRUE)
 
   # Create validation dataset and dataloader (if required)
+  val_dl <- NULL
 
+  if(create_validation) {
+    val_ds <- create_tensor_dataset(x_val)
+
+    val_dl <- torch::dataloader(val_ds,
+                                batch_size = batch_size,
+                                shuffle=FALSE)
+  }
 
   # Create luz wrapper
-
+  # TODO
+  # TODO: hacer la loss
 
   # Save trained model AND the recipe required to apply the same preprocessing to the test set
 
 }
+
+
+
+
 
 
 
@@ -66,8 +90,11 @@ custom_vime_step_callback <- luz::luz_callback(
     mask_target <- mask$to(dtype = torch::torch_float())
 
 
-    ctx$input <- x_corrupted  # Input for the forward method and "input" variable in the loss function
-    ctx$target <- c(mask_target, x)  # Input for the "target" variable in the loss function. Not needed during forward
+    ctx$input <- x_corrupted  # Input for the forward method
+    ctx$target <- list(  # Input for the "target" variable in the loss function. Not needed during forward
+      mask = mask_target,
+      x = x
+    )
 
 
 
@@ -106,7 +133,7 @@ custom_vime_step_callback <- luz::luz_callback(
     mask_target <- mask$to(dtype = torch::torch_float())
 
 
-    ctx$input <- x_corrupted  # Input for the forward method and "input" variable in the loss function
+    ctx$input <- x_corrupted  # Input for the forward method
     ctx$target <- c(mask_target, x)  # The "target" variable in the loss function. Not needed during forward
 
   },
@@ -136,7 +163,7 @@ scarf_fit = function(
 
 
   # Load and preprocess data
-  preprocessed_datasets <- prepare_scarf_data(dataframe_train, exclude_columns = exclude_columns, create_validation = create_validation, validation_proportion = validation_proportion, preprocess = preprocess)
+  preprocessed_datasets <- prepare_data(dataframe_train, exclude_columns = exclude_columns, create_validation = create_validation, validation_proportion = validation_proportion, preprocess = preprocess)
 
   x_train <- preprocessed_datasets$train_set
   x_val <- preprocessed_datasets$val_set  # May be null

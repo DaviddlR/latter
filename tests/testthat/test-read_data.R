@@ -12,12 +12,12 @@ create_dummy_data <- function() {
 }
 
 
-# prepare_scarf_data
-test_that("prepare_scarf_data correctly excludes columns and formats matrix", {
+# prepare_data
+test_that("prepare_data correctly excludes columns and formats matrix", {
 
   df <- create_dummy_data()
 
-  output <- prepare_scarf_data(
+  output <- prepare_data(
     dataframe_train = df,
     exclude_columns = c("id", "target"),
     create_validation = FALSE,
@@ -44,10 +44,10 @@ test_that("prepare_scarf_data correctly excludes columns and formats matrix", {
 
 
 # Check validation
-test_that("prepare_scarf_data creates validation splits", {
+test_that("prepare_data creates validation splits", {
   df <- create_dummy_data()
 
-  output <- prepare_scarf_data(
+  output <- prepare_data(
     dataframe_train = df,
     exclude_columns = c("id", "target"),
     create_validation = TRUE,
@@ -66,11 +66,11 @@ test_that("prepare_scarf_data creates validation splits", {
 
 
 
-test_that("prepare_scarf_data works without preprocess", {
+test_that("prepare_data works without preprocess", {
 
   df <- create_dummy_data()
 
-  output <- prepare_scarf_data(
+  output <- prepare_data(
     dataframe_train = df,
     exclude_columns = c("id", "target"),
     create_validation = TRUE,

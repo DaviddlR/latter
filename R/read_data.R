@@ -74,7 +74,7 @@ prepare_data_for_feature_extraction = function(dataframe, trained_recipe, catego
 #' @param preprocess \code{Boolean}. Set if the data need preprocessing steps using 'recipes', such as 'step_normalize' or 'step_dummy'. Default is \code{TRUE}, meaning that this process is automatically done.
 #'
 #' @returns Preprocessed train dataset (and validation set if required) and the recipes::recipe used for preprocessing
-prepare_scarf_data = function(dataframe_train, exclude_columns = NULL, create_validation = FALSE, validation_proportion = 0.1, preprocess = TRUE) {
+prepare_data = function(dataframe_train, exclude_columns = NULL, create_validation = FALSE, validation_proportion = 0.1, preprocess = TRUE) {
 
   df_train_data <- as.data.frame(dataframe_train)
 

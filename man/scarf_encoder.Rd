@@ -2,7 +2,7 @@
 % Please edit documentation in R/neural_network_models.R
 \name{scarf_encoder}
 \alias{scarf_encoder}
-\title{Basic encoder module.}
+\title{Basic encoder module. This is the official implementation of SCARF}
 \usage{
 scarf_encoder(
   num_cont,
@@ -27,5 +27,5 @@ scarf_encoder(
 A 'torch::nn_module' representing the encoder.
 }
 \description{
-Basic encoder module.
+Basic encoder module. This is the official implementation of SCARF
 }

@@ -41,7 +41,208 @@ classifier_network <- torch::nn_module(
 
 
 
-#' Basic encoder module.
+#' Basic encoder module. This is the official implementation of VIME
+#'
+#' @param num_cont Number of numerical features.
+#' @param cat_dims Number of dimensions per categorical column.
+#'
+#' @returns A 'torch::nn_module' representing the encoder.
+vime_encoder <- torch::nn_module(
+  name = "vime_basic_encoder",
+
+  initialize = function(num_cont, cat_dims) {
+    self$num_cont <- num_cont
+    self$cat_dims <- cat_dims
+
+    self$num_cat <- length(cat_dims)
+
+
+    # Embeddings for categorical columns
+    if (self$cat_dims > 0) {
+      self$emb_dims <- sapply(cat_dims, function(x) min(50, ceiling((x + 1) / 2)))  # How many dimensions each embedding
+
+      # Embedding module
+      self$embeddings <- torch::nn_module_list(  # For each categorical, an embedding layer
+        lapply(seq_along(cat_dims), function(i) {
+          torch::nn_embedding(
+            num_embeddings = cat_dims[i] + 2, # + 2 for out of range
+            embedding_dim = self$emb_dims[i]
+          )
+        })
+      )
+
+      total_in_dim <- num_cont + sum(self$emb_dims)
+    } else {
+      total_in_dim <- num_cont
+    }
+
+    self$output_dim <- total_in_dim
+
+
+    self$encoder <- torch::nn_sequential(
+      torch::nn_linear(total_in_dim, total_in_dim),
+      torch::nn_relu(inplace=TRUE)
+    )
+
+
+  },
+
+
+  forward = function(x) {
+    # Check if it has categorical values so that it needs embeddings
+    if (self$has_cat) {
+      x_cont <- x[, 1:self$num_cont, drop = FALSE]  # Numerical are the first columns
+      x_cat <- x[, (self$num_cont + 1):ncol(x), drop = FALSE]$to(dtype = torch::torch_long())  # Categorical are at the end
+
+      # Get embeddings
+      embedded_list <- list()
+      for (i in seq_len(ncol(x_cat))) {
+        cat_col <- x_cat[, i]
+        embedded_list[[i]] <- self$embeddings[[i]](cat_col)
+      }
+
+      # Concatenate
+      x_emb <- torch::torch_cat(embedded_list, dim = 2)
+      x_prepared <- torch::torch_cat(list(x_cont, x_emb), dim = 2)
+
+    } else {
+      x_prepared <- x
+    }
+
+    # Forward through the main encoder
+    self$encoder(x_prepared)
+  }
+
+)
+
+
+
+
+# VIME mask estimator
+# It measures the probability that each column has been corrupted. If predicted probability = 1, it means that the model believes
+# that the variable has been corrupted.
+# Input dimensions: output of the encoder
+# Output dimensions: number of columns of the original sample
+vime_mask_estimator <- torch::nn_module(
+
+  initialize = function(in_dim, num_cont, cat_dims) {
+
+    self$in_dim <- in_dim  # Dimensions of the output of the encoder
+    self$num_cont <- num_cont
+    self$num_cat <- length(cat_dims)
+
+    self$number_of_original_variables = self$num_cont + self$num_cat
+
+    self_mask_estimator = torch::nn_sequential(
+      torch::nn_linear(in_dim, self$number_of_original_variables)
+    )
+  },
+
+  forward = function(z) {
+    mask_pred <- torch::torch_sigmoid(self$mask_estimator(z))
+  }
+)
+
+
+# VIME feature estimator
+# It reconstructs the original, actual values that the sample had before being corrupted
+# Input dimensions: output of the encoder
+# Output dimensions: embedding logits of each category.
+vime_feature_estimator <- torch::nn_module(
+  initialize = function(in_dim, num_cont, cat_dims) {
+
+    self$in_dim <- in_dim  # Dimensions of the output of the encoder
+    self$num_cont <- num_cont
+    self$num_cat <- length(cat_dims)
+    self$cat_dims <- cat_dims
+
+    # Numerical features
+    if (self$num_cont > 0) {
+      self$numerical_feature_estimator = torch::nn_sequential(
+        torch::nn_linear(self$in_dim, self$num_cont)
+      )
+    }
+
+
+    # Categorical features
+    if (self$num_cat > 0) {
+      self$categorical_feature_estimator <- torch::nn_module_list(
+        lapply(cat_dims, function(dim_k) {
+          torch::nn_linear(in_dim, dim_k)
+        })
+      )
+    }
+
+  },
+
+  forward = function(z) {
+
+    # Continual features prediction
+    cont_estimation <- if (self$num_cont > 0) self$numerical_feature_estimator(z) else NULL
+
+    # Categorical features prediction
+    cat_estimation <- list()
+
+    if (self$num_cat > 0) {
+      for (i in seq_along(self$cat_dims)) {
+        cat_estimation[[i]] <- self$categorical_feature_estimator[[i]](z)
+      }
+    }
+
+    return(list(
+      cont_estimation = cont_estimation,
+      cat_estimation = cat_estimation
+    ))
+  }
+
+)
+
+
+
+# Wrapper
+vime_wrapper <- torch::nn_module(
+
+  initialize = function(num_cont, cat_dims) {
+
+    # Encoder
+    self$vime_encoder <- vime_encoder(num_cont, cat_dims)
+    output_dimension <- self$vime_encoder$output_dim
+
+    # Prediction heads
+    self$feature_estimator <- vime_feature_estimator(output_dimension, num_cont, cat_dims)
+    self$mask_estimator <- vime_mask_estimator(output_dimension, num_cont, cat_dims)
+  },
+
+
+  forward = function(x_input) {  # Input comes from the luz callback
+
+    # Take original and corrupted sample (see callback VIME)
+    x_corrupted <- x_input
+
+    # Encode it using encoder and projection head
+    x_corrupted_encoded <- self$vime_encoder(x_corrupted)
+
+    # Get feature estimation and mask estimation (act like projection heads, so we do not need an additional one)
+    feature_estimation <- self$feature_estimator(x_corrupted_encoder)  # Cont estimation and cat estimation
+    mask_estimation <- self$mask_estimator(x_corrupted_encoder)  # mask prediction
+
+    result <- c(feature_estimation, mask_estimation)
+  }
+)
+
+
+
+
+
+
+
+
+
+
+
+
+
+#' Basic encoder module. This is the official implementation of SCARF
 #'
 #' @param num_cont Number of numerical features.
 #' @param cat_dims Number of dimensions per categorical column.
@@ -211,8 +412,6 @@ SCARF_wrapper <- torch::nn_module(  # Something like SCARF lightning but we do n
 
   forward = function(x_input) {  # Here it comes a list with (original sample, corrupted sample). See luz callback
 
-
-    # Take original and corrupted sample (see callback SCARF)
     x_original <- x_input[[1]]
     x_corrupted <- x_input[[2]]
 
