@@ -172,8 +172,8 @@ encode_categorical_data = function(data, metadata = NULL) {
     possible_integer[is.na(possible_integer)] <- length(known_levels) + 1
     data_processed[[col]] <- possible_integer
 
-    print(data[[col]])
-    print(data_processed[[col]])
+    #print(data[[col]])
+    #print(data_processed[[col]])
   }
 
   # Reorder the data so that numerical columns appear first

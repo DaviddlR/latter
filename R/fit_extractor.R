@@ -73,6 +73,8 @@ fit_extractor <- function (
       preprocess = preprocess
     )
   } else if (identical(pretraining_type, "VIME")) {
+
+    print("VIME TRAINING :D")
     # VIME pretraining
     vime_bundle <- vime_fit(
       dataframe_train = dataframe_train,

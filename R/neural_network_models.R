@@ -58,7 +58,7 @@ vime_encoder <- torch::nn_module(
 
 
     # Embeddings for categorical columns
-    if (self$cat_dims > 0) {
+    if (self$num_cat > 0) {
       self$emb_dims <- sapply(cat_dims, function(x) min(50, ceiling((x + 1) / 2)))  # How many dimensions each embedding
 
       # Embedding module
@@ -89,8 +89,9 @@ vime_encoder <- torch::nn_module(
 
 
   forward = function(x) {
+
     # Check if it has categorical values so that it needs embeddings
-    if (self$has_cat) {
+    if (self$num_cat > 0) {
       x_cont <- x[, 1:self$num_cont, drop = FALSE]  # Numerical are the first columns
       x_cat <- x[, (self$num_cont + 1):ncol(x), drop = FALSE]$to(dtype = torch::torch_long())  # Categorical are at the end
 
@@ -133,12 +134,13 @@ vime_mask_estimator <- torch::nn_module(
 
     self$number_of_original_variables = self$num_cont + self$num_cat
 
-    self_mask_estimator = torch::nn_sequential(
+    self$mask_estimator = torch::nn_sequential(
       torch::nn_linear(in_dim, self$number_of_original_variables)
     )
   },
 
   forward = function(z) {
+    print("###########   FORWARD VIME MASK ESTIMATOR REACHED")
     mask_pred <- torch::torch_sigmoid(self$mask_estimator(z))
   }
 )
@@ -184,9 +186,12 @@ vime_feature_estimator <- torch::nn_module(
     cat_estimation <- list()
 
     if (self$num_cat > 0) {
+      cat_estimation <- list()
       for (i in seq_along(self$cat_dims)) {
         cat_estimation[[i]] <- self$categorical_feature_estimator[[i]](z)
       }
+    } else {
+      cat_estimation <- NULL
     }
 
     return(list(
@@ -223,10 +228,10 @@ vime_wrapper <- torch::nn_module(
     x_corrupted_encoded <- self$vime_encoder(x_corrupted)
 
     # Get feature estimation and mask estimation (act like projection heads, so we do not need an additional one)
-    feature_estimation <- self$feature_estimator(x_corrupted_encoder)  # Cont estimation and cat estimation
-    mask_estimation <- self$mask_estimator(x_corrupted_encoder)  # mask prediction
+    feature_estimation <- self$feature_estimator(x_corrupted_encoded)  # Cont estimation and cat estimation
+    mask_estimation <- self$mask_estimator(x_corrupted_encoded)  # mask prediction
 
-    result <- c(feature_estimation, mask_estimation)
+    result <- c(feature_estimation = feature_estimation, mask_estimation = mask_estimation)
   }
 )
 
@@ -320,6 +325,10 @@ scarf_encoder <- torch::nn_module(
 
   # Forward pass
   forward = function(x) {
+
+    #print("SCARF......")
+    #print(x)
+
 
     # Check if it has categorical values so that it needs embeddings
     if (self$has_cat) {

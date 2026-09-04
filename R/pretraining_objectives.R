@@ -11,7 +11,9 @@ vime_fit = function(
 ) {
 
   # Load and preprocess data
+  print("##############    PREPARE DATA")
   preprocessed_datasets <- prepare_data(dataframe_train, exclude_columns = exclude_columns, create_validation = create_validation, validation_proportion = validation_proportion, preprocess = preprocess)
+  print("##############    END PREPARE DATA")
 
   x_train <- preprocessed_datasets$train_set
   x_val <- preprocessed_datasets$val_set  # May be null
@@ -19,7 +21,9 @@ vime_fit = function(
   metadata_for_cat <- preprocessed_datasets$metadata_for_cat
 
   # Create training dataset and dataloader
+  print("##############    CREATE TENSOR DATASET")
   train_ds <- create_tensor_dataset(x_train)
+  print("##############    END CREATE TENSOR DATASET")
 
   train_dl <- torch::dataloader(train_ds,
                                 batch_size = batch_size,
@@ -36,11 +40,52 @@ vime_fit = function(
                                 shuffle=FALSE)
   }
 
-  # Create luz wrapper
-  # TODO
-  # TODO: hacer la loss
+  # Create wrapper
+  fitted <- vime_wrapper |>
+    luz::setup(
+      loss = vime_loss(alpha = 1.0),
+      optimizer = torch::optim_adam  # Check
+    ) |>
+    luz::set_hparams(
+      num_cont = length(metadata_for_cat$num_cols),
+      cat_dims = metadata_for_cat$cat_dims,
+      # hidden_dim = 256,
+      # num_hidden = 4,
+      # head_hidden_dim = 256,
+      # head_num_hidden = 2,
+      # dropout = 0.0
+    ) |>
+    luz::set_opt_hparams(
+      lr = 0.0001
+    ) |>
+    luz::fit(
+      train_dl,
+      epochs = n_epochs,
+      valid_data = val_dl,
+      callbacks = list(custom_vime_step_callback(corruption_rate = 0.6))
+    )
+
 
   # Save trained model AND the recipe required to apply the same preprocessing to the test set
+  encoder_weights <- fitted$model$vime_encoder$state_dict()
+
+  hparams <- list(
+    num_cont = length(metadata_for_cat$num_cols),
+    cat_dims = metadata_for_cat$cat_dims,
+    hidden_dim = 256,
+    num_hidden = 4,
+    dropout = 0.0
+  )
+
+  model_bundle <- list(
+    encoder_state_dict = encoder_weights,
+    encoder_hparams = hparams,
+    metadata_for_cat = metadata_for_cat,
+    recipe = serialize(recipe, NULL),
+    bundle_type = "scarf_bundle"
+  )
+
+  return(invisible(model_bundle))
 
 }
 
@@ -88,7 +133,6 @@ custom_vime_step_callback <- luz::luz_callback(
 
     # Binary mask to float (0.0 , 1.0)
     mask_target <- mask$to(dtype = torch::torch_float())
-
 
     ctx$input <- x_corrupted  # Input for the forward method
     ctx$target <- list(  # Input for the "target" variable in the loss function. Not needed during forward
