@@ -2,68 +2,131 @@
 vime_loss <- torch::nn_module(
   name = "vime_loss",
 
-  initialize = function(alpha = 1.0) {
+  initialize = function(alpha = 1.0, num_cont, cat_dims) {
     # Check si se necesita algún parámetro para ajustar
-    self$alpha = alpha
+    self$alpha <- alpha
+    self$num_cont <- num_cont
+    self$num_cat <- length(cat_dims)
+
   },
 
   forward = function(input, target) {
 
-    print("############    LOSS REACHED")
-
-    print(input)
-
-    print("##########      TARGET")
-
     print(target)
 
-    print("###############################################")
-
-    # Extract target (custom_vime_step_callback)
+    # Extract target
     mask_original <- target$mask
-    x_original <- target$x  # This is the original sample after prepare_data, so that it already contains the numerical features first and the categorical features at the end.
+    x_original <- target$x
 
-    # Extract predictions (vime_wrapper > forward)
-    #predicted_features <- input[[1]]
-
-
+    # Extract predictions
     predicted_num_features <- input$feature_estimation.cont_estimation
     predicted_cat_features <- input$feature_estimation.cat_estimation
     predicted_mask <- input$mask_estimation
 
-    print(predicted_num_features)
-
-    print(predicted_cat_features)
-
-    print(predicted_mask)
-
-    print("###############################################")
-
-    # Reorder the original sample so that it matches the same order as the prediction (numerical features first, categorical last)
-    all_feature_tensors <- c(list(predicted_num_features), predicted_cat_features)
-    predicted_features_ordered <- torch::torch_cat(all_feature_tensors, dim = 2)
-    #predicted_features_ordered <- torch::torch_cat(list(predicted_num_features, predicted_cat_features), dim = 1)
+    # print(predicted_num_features)
+    #
+    # print(predicted_cat_features)
+    #
+    # print(predicted_mask)
 
 
-    # "Mask vector estimator is trained by minimizing the cross-entropy loss"
-    mask_loss <- torch::nnf_binary_cross_entropy_with_logits(predicted_mask, mask_original)
 
-    print("REACHED???????")
+    # Mask loss: "Mask vector estimator is trained by minimizing the cross-entropy loss"
+    mask_loss <- torch::nnf_binary_cross_entropy(predicted_mask, mask_original)
 
+
+    # Reconstruction loss
     # "Feature vector estimator is trained by minimizing the reconstruction loss" (mean_square_error)
-    print(predicted_features_ordered)  # DIMS 189 (verificar cómo se forman esas 189)
 
-    print(x_original)  # DIMS 34 (36 menos las dos de exclude columns)
+    reconstruction_loss <- torch::torch_tensor(0.0, device = x_original$device)
 
-    loss_reconstruction <- torch::nnf_mse_loss(predicted_features_ordered, x_original)
 
-    print("REACHED 2 (aquí falla David del viernes, losses > vime_loss) ???????")
+    # Numerical variables
+    if (self$num_cont > 0 && !is.null(predicted_num_features)) {
+      x_cont_target <- x_original[, 1:self$num_cont, drop = FALSE]
+      num_loss <- torch::nnf_mse_loss(predicted_num_features, x_cont_target)
+      reconstruction_loss <- reconstruction_loss + loss_num
+    }
+
+    # Categorical variables
+    if (self$num_cat > 0 && !is.null(predicted_cat_features)) {
+      cat_loss <- torch::torch_tensor(0.0, device = x_original$device)
+
+      for (i in seq_len(self$num_cat)) {
+        cat_target <- x_original[, self$num_cont + i]$to(dtype = torch::torch_long())
+        logits <- predicted_cat_features[[i]]
+
+        cat_loss <- cat_loss + torch::nnf_cross_entropy(logits, cat_target)
+      }
+
+      reconstruction_loss <- reconstruction_loss + cat_loss
+    }
+
 
     # "Encoder is trained by minimizing the weighted sum of both losses" (alpha parameter)
-    final_loss <- loss_mask + alpha * loss_reconstruction
-
-    print("############    LOSS ENDED")
+    final_loss <- mask_loss + self$alpha * reconstruction_loss
     return(final_loss)
+
+
+    # print("############    LOSS REACHED")
+    #
+    # print(input)
+    #
+    # print("##########      TARGET")
+    #
+    # print(target)
+    #
+    # print("###############################################")
+    #
+    # # Extract target (custom_vime_step_callback)
+    # mask_original <- target$mask
+    # x_original <- target$x  # This is the original sample after prepare_data, so that it already contains the numerical features first and the categorical features at the end.
+    #
+    # # Extract predictions (vime_wrapper > forward)
+    # #predicted_features <- input[[1]]
+    #
+    #
+    # predicted_num_features <- input$feature_estimation.cont_estimation
+    # predicted_cat_features <- input$feature_estimation.cat_estimation
+    # predicted_mask <- input$mask_estimation
+    #
+    # print(predicted_num_features)
+    #
+    # print(predicted_cat_features)
+    #
+    # print(predicted_mask)
+    #
+    # print("###############################################  (last)")
+    #
+    # # Reorder the original sample so that it matches the same order as the prediction (numerical features first, categorical last)
+    # all_feature_tensors <- c(list(predicted_num_features), predicted_cat_features)
+    #
+    # print("hola")
+    # predicted_features_ordered <- torch::torch_cat(all_feature_tensors, dim = 2)
+    #
+    # print(predicted_features_ordered)
+    # #predicted_features_ordered <- torch::torch_cat(list(predicted_num_features, predicted_cat_features), dim = 1)
+    #
+    #
+    # # "Mask vector estimator is trained by minimizing the cross-entropy loss"
+    # mask_loss <- torch::nnf_binary_cross_entropy_with_logits(predicted_mask, mask_original)
+    #
+    # print("REACHED???????")
+    #
+    # # "Feature vector estimator is trained by minimizing the reconstruction loss" (mean_square_error)
+    # print(predicted_features_ordered)  # DIMS 189 (verificar cómo se forman esas 189)
+    #
+    # print(x_original)  # DIMS 34 (36 menos las dos de exclude columns)
+    #
+    # loss_reconstruction <- torch::nnf_mse_loss(predicted_features_ordered, x_original)
+    #
+    # print("REACHED 2 (aquí falla David del viernes, losses > vime_loss) ???????")
+    #
+    # # "Encoder is trained by minimizing the weighted sum of both losses" (alpha parameter)
+    # final_loss <- loss_mask + alpha * loss_reconstruction
+    #
+    # print("############    LOSS ENDED")
+    # return(final_loss)
 
   }
 )

@@ -40,15 +40,20 @@ vime_fit = function(
                                 shuffle=FALSE)
   }
 
+
+  num_cont <- length(metadata_for_cat$num_cols)
+  cat_dims <- metadata_for_cat$cat_dims
+
+
   # Create wrapper
   fitted <- vime_wrapper |>
     luz::setup(
-      loss = vime_loss(alpha = 1.0),
+      loss = vime_loss(alpha = 1.0, num_cont = num_cont, cat_dims = cat_dims),
       optimizer = torch::optim_adam  # Check
     ) |>
     luz::set_hparams(
-      num_cont = length(metadata_for_cat$num_cols),
-      cat_dims = metadata_for_cat$cat_dims,
+      num_cont = num_cont,
+      cat_dims = cat_dims,
       # hidden_dim = 256,
       # num_hidden = 4,
       # head_hidden_dim = 256,

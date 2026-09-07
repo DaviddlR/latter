@@ -61,6 +61,9 @@ vime_encoder <- torch::nn_module(
     if (self$num_cat > 0) {
       self$emb_dims <- sapply(cat_dims, function(x) min(50, ceiling((x + 1) / 2)))  # How many dimensions each embedding
 
+      # print("---------------        Emb dimensions")
+      # print(self$emb_dims)  # Proto 50, service 8, state 6
+
       # Embedding module
       self$embeddings <- torch::nn_module_list(  # For each categorical, an embedding layer
         lapply(seq_along(cat_dims), function(i) {
@@ -72,6 +75,7 @@ vime_encoder <- torch::nn_module(
       )
 
       total_in_dim <- num_cont + sum(self$emb_dims)
+      # print(total_in_dim)
     } else {
       total_in_dim <- num_cont
     }
@@ -90,9 +94,9 @@ vime_encoder <- torch::nn_module(
 
   forward = function(x) {
 
-    # Check if it has categorical values so that it needs embeddings
+
+    # Check categorical values
     if (self$num_cat > 0) {
-      x_cont <- x[, 1:self$num_cont, drop = FALSE]  # Numerical are the first columns
       x_cat <- x[, (self$num_cont + 1):ncol(x), drop = FALSE]$to(dtype = torch::torch_long())  # Categorical are at the end
 
       # Get embeddings
@@ -102,16 +106,25 @@ vime_encoder <- torch::nn_module(
         embedded_list[[i]] <- self$embeddings[[i]](cat_col)
       }
 
-      # Concatenate
       x_emb <- torch::torch_cat(embedded_list, dim = 2)
-      x_prepared <- torch::torch_cat(list(x_cont, x_emb), dim = 2)
+
+
+      # Check numerical values
+      if (self$num_cont > 0) {
+        x_cont <- x[, 1:self$num_cont, drop = FALSE]  # Numerical are the first columns
+        x_prepared <- torch::torch_cat(list(x_cont, x_emb), dim = 2)
+      } else {
+        x_prepared <- x_emb
+      }
 
     } else {
       x_prepared <- x
     }
 
     # Forward through the main encoder
-    self$encoder(x_prepared)
+    output <- self$encoder(x_prepared)
+    return (output)  # Output [256, 95] con UNSW-NB15
+
   }
 
 )
@@ -140,8 +153,10 @@ vime_mask_estimator <- torch::nn_module(
   },
 
   forward = function(z) {
-    print("###########   FORWARD VIME MASK ESTIMATOR REACHED")
+    # print("###########   FORWARD VIME MASK ESTIMATOR REACHED")
     mask_pred <- torch::torch_sigmoid(self$mask_estimator(z))
+
+    return (mask_pred)
   }
 )
 
@@ -170,7 +185,7 @@ vime_feature_estimator <- torch::nn_module(
     if (self$num_cat > 0) {
       self$categorical_feature_estimator <- torch::nn_module_list(
         lapply(cat_dims, function(dim_k) {
-          torch::nn_linear(in_dim, dim_k)
+          torch::nn_linear(in_dim, dim_k + 2)  # +2 for out of range as defined in the encoder
         })
       )
     }
@@ -213,6 +228,11 @@ vime_wrapper <- torch::nn_module(
     self$vime_encoder <- vime_encoder(num_cont, cat_dims)
     output_dimension <- self$vime_encoder$output_dim
 
+    # print("WARPPER")
+    # print(output_dimension)
+    # print(num_cont)
+    # print(cat_dims)
+
     # Prediction heads
     self$feature_estimator <- vime_feature_estimator(output_dimension, num_cont, cat_dims)
     self$mask_estimator <- vime_mask_estimator(output_dimension, num_cont, cat_dims)
@@ -224,14 +244,21 @@ vime_wrapper <- torch::nn_module(
     # Take original and corrupted sample (see callback VIME)
     x_corrupted <- x_input
 
+
+    # print(" !!!!!!!!!!!!!!!!!    FORWARD WRAPPER  !!!!!!!!!!!!!!!!!!")
+
     # Encode it using encoder and projection head
     x_corrupted_encoded <- self$vime_encoder(x_corrupted)
+
+    # print(x_corrupted_encoded)
+
+
 
     # Get feature estimation and mask estimation (act like projection heads, so we do not need an additional one)
     feature_estimation <- self$feature_estimator(x_corrupted_encoded)  # Cont estimation and cat estimation
     mask_estimation <- self$mask_estimator(x_corrupted_encoded)  # mask prediction
 
-    result <- c(feature_estimation = feature_estimation, mask_estimation = mask_estimation)
+    result <- list(feature_estimation = feature_estimation, mask_estimation = mask_estimation)
   }
 )
 
@@ -435,7 +462,7 @@ SCARF_wrapper <- torch::nn_module(  # Something like SCARF lightning but we do n
     # z_original <- self$projection_head(self$main_encoder(x_original))
     # z_corrupted <- self$projection_head(self$main_encoder(x_corrupted))
 
-    result <- c(z_original, z_corrupted)
+    result <- list(z_original, z_corrupted)
 
   }
 )
