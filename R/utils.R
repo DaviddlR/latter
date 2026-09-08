@@ -3,10 +3,9 @@
 #' Function to read and check a SCARF bundle
 #'
 #' @param bundle_path Path to file storing a "scarf_bundle" object
-#' @param pretraining_type A \code{character} indicating the pretraining objective used by the model stored in the bundle. Default is \code{"SCARF"}. Available options are \code{["SCARF"]}.
 #' @returns Pretrained model's weights and trained recipe for preprocessing
 #'
-load_bundle = function(bundle_path, pretraining_type = "SCARF") {
+load_bundle = function(bundle_path) {
 
 
   if (is.character(bundle_path)){
@@ -22,7 +21,7 @@ load_bundle = function(bundle_path, pretraining_type = "SCARF") {
   # Validate input
 
   # SCARF bundle
-  if(is.list(model_bundle) && identical(model_bundle$bundle_type, "scarf_bundle")) {
+  if (is.list(model_bundle) && identical(model_bundle$bundle_type, "scarf_bundle")) {
 
     # Load encoder hyperparameters
     hparams <- model_bundle$encoder_hparams
@@ -48,6 +47,32 @@ load_bundle = function(bundle_path, pretraining_type = "SCARF") {
       encoder = fitted_encoder,
       recipe = trained_recipe
     ))
+
+  # VIME bundle
+  } else if (is.list(model_bundle) && identical(model_bundle$bundle_type, "vime_bundle")) {
+
+    # Load encoder hyperparameters
+    hparams <- model_bundle$encoder_hparams
+
+    print(hparams)
+
+    # Create a new encoder
+    fitted_encoder <- vime_encoder(
+      num_cont = hparams$num_cont,
+      cat_dims = hparams$cat_dims
+    )
+
+    # Load trained weights
+    fitted_encoder$load_state_dict(model_bundle$encoder_state_dict)
+
+    # Load recipe
+    trained_recipe <- unserialize(model_bundle$recipe)
+
+    return(list(
+      encoder = fitted_encoder,
+      recipe = trained_recipe
+    ))
+
 
   } else {
     stop("The input is not a valid bundle. Please, train a model using fit_extractor() and set the pretrained_model_path to the path in which the trained model is stored")

@@ -95,12 +95,12 @@ fit_extractor <- function (
 
   # If save_path is not null, save model locally (it will be NULL when using it as a recipe, when stored in RAM)
   if (!is.null(save_path)){
-    torch::torch_save(scarf_bundle, path = paste0(save_path, ".pt"))
+    torch::torch_save(vime_bundle, path = paste0(save_path, ".pt"))
     message("Pretrained model saved in ", save_path, ".pt")
   }
 
   # Return invisible for the recipe prep and bake
-  return(invisible(scarf_bundle))
+  return(invisible(vime_bundle))
 
 
 }

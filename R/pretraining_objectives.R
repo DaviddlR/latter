@@ -71,15 +71,14 @@ vime_fit = function(
     )
 
 
+  print("FIT ENDED")
+
   # Save trained model AND the recipe required to apply the same preprocessing to the test set
   encoder_weights <- fitted$model$vime_encoder$state_dict()
 
   hparams <- list(
-    num_cont = length(metadata_for_cat$num_cols),
-    cat_dims = metadata_for_cat$cat_dims,
-    hidden_dim = 256,
-    num_hidden = 4,
-    dropout = 0.0
+    num_cont = num_cont,
+    cat_dims = cat_dims,
   )
 
   model_bundle <- list(
@@ -87,7 +86,7 @@ vime_fit = function(
     encoder_hparams = hparams,
     metadata_for_cat = metadata_for_cat,
     recipe = serialize(recipe, NULL),
-    bundle_type = "scarf_bundle"
+    bundle_type = "vime_bundle"
   )
 
   return(invisible(model_bundle))
@@ -183,7 +182,10 @@ custom_vime_step_callback <- luz::luz_callback(
 
 
     ctx$input <- x_corrupted  # Input for the forward method
-    ctx$target <- c(mask_target, x)  # The "target" variable in the loss function. Not needed during forward
+    ctx$target <- list(  # Input for the "target" variable in the loss function. Not needed during forward
+      mask = mask_target,
+      x = x
+    )
 
   },
 
