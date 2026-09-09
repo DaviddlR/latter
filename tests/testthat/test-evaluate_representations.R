@@ -66,7 +66,6 @@ prediction_pipeline_setup <- function() {
   train_classifier_on_extracted_features(
     df_train = df_tr,
     pretrained_model_path = tmp_scarf,
-    pretraining_type = "SCARF",
     label_column = "target",
     num_classes = 2,
     exclude_columns = c("id", "target"),
@@ -80,7 +79,6 @@ prediction_pipeline_setup <- function() {
     train_classifier_on_extracted_features(
       df_train = df_tr,
       pretrained_model_path = tmp_scarf,
-      pretraining_type = "SCARF",
       label_column = "target",
       num_classes = 2,
       exclude_columns = c("id", "target"),
@@ -114,7 +112,6 @@ test_that("train_classifier_on_extracted_features works with MLP classification 
   train_classifier_on_extracted_features(
     df_train = setup$df,
     pretrained_model_path = setup$pretrained_path,
-    pretraining_type = "SCARF",
     label_column = "target",
     num_classes = 2,
     exclude_columns = c("id", "target"),
@@ -160,7 +157,6 @@ test_that("train_classifier_on_extracted_features works with parsnip models", {
   train_classifier_on_extracted_features(
     df_train = setup$df,
     pretrained_model_path = setup$pretrained_path,
-    pretraining_type = "SCARF",
     label_column = "target",
     num_classes = 2,
     exclude_columns = c("id", "target"),
@@ -201,7 +197,6 @@ test_that("train_classifier works with custom parsnip classification model objec
   train_classifier_on_extracted_features(
     df_train = setup$df,
     pretrained_model_path = setup$pretrained_path,
-    pretraining_type = "SCARF",
     label_column = "target",
     num_classes = 2,
     exclude_columns = c("id", "target"),
@@ -237,7 +232,6 @@ test_that("train_classifier_on_extracted_features handles errors correctly", {
     train_classifier_on_extracted_features(
       df_train = setup$df,
       pretrained_model_path = setup$pretrained_path,
-      pretraining_type = "SCARF",
       label_column = "target",
       num_classes = 2
     ),
@@ -250,7 +244,6 @@ test_that("train_classifier_on_extracted_features handles errors correctly", {
     train_classifier_on_extracted_features(
       df_train = setup$df,
       pretrained_model_path = setup$pretrained_path,
-      pretraining_type = "SCARF",
       label_column = "target",
       num_classes = 2,
       classification_model_type = "NON_EXISTENT_MODEL"
@@ -281,7 +274,6 @@ test_that("downstream_prediction works with MLP classifier", {
   results <- downstream_prediction(
     df_test = setup$df_test,
     pretrained_model_path = setup$scarf_path,
-    pretraining_type = "SCARF",
     label_column = "target",
     classification_model_path = setup$mlp_path,
     exclude_columns = c("id", "target"),
@@ -328,7 +320,6 @@ test_that("downstream_prediction works with parsnip classifier", {
   results <- downstream_prediction(
     df_test = setup$df_test,
     pretrained_model_path = setup$scarf_path,
-    pretraining_type = "SCARF",
     label_column = "target",
     classification_model_path = setup$parsnip_path,
     exclude_columns = c("id", "target"),
@@ -371,7 +362,6 @@ test_that("downstream_prediction returns classification report if asked", {
     downstream_prediction(
       df_test = setup$df_test,
       pretrained_model_path = setup$scarf_path,
-      pretraining_type = "SCARF",
       label_column = "target",
       classification_model_path = setup$mlp_path,
       exclude_columns = c("id", "target"),

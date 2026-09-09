@@ -7,7 +7,6 @@
 extract_features(
   dataframe,
   pretrained_model,
-  pretraining_type = "SCARF",
   exclude_columns = NULL,
   want_labels = FALSE,
   label_column = NULL,
@@ -19,8 +18,6 @@ extract_features(
 \item{dataframe}{A \code{data.frame} from which to extract features.}
 
 \item{pretrained_model}{\code{String} or \code{list}. Path to the pretrained SCARF model (.pt file) if String or SCARF bundle if \code{list}.}
-
-\item{pretraining_type}{A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it will use a SCARF pretrained module. Available options are \code{["SCARF"]}.}
 
 \item{exclude_columns}{A \code{string} of columns that the model should ignore during inference (i.e target or ID columns). Default is \code{NULL}.}
 
@@ -71,7 +68,6 @@ fit_extractor(
 extracted <- extract_features(
   dataframe = df_train,
   pretrained_model = tmp_path,
-  pretraining_type = "SCARF",
   exclude_columns = c("user_id", "cancellation"),
   want_labels = TRUE,
   label_column = "cancellation"

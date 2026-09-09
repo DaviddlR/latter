@@ -1,7 +1,7 @@
 #' Trains a SCARF encoder using a contrastive loss objective. It prepares the data using a recipe, applies random feature corruption and fits the model.
 #'
 #' @param dataframe_train A \code{data.frame} used to train de model.
-#' @param pretraining_type A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it follows SCARF pretraining. Available options are \code{["SCARF"]}.
+#' @param pretraining_type A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it follows SCARF pretraining. Available options are \code{["SCARF", "VIME"]}.
 #' @param exclude_columns A \code{character} of columns that the model should ignore during pretraining (i.e target or ID columns). Default is \code{NULL}.
 #' @param create_validation \code{Boolean}. If \code{TRUE}, splits the training data to create a validation set. Default is \code{FALSE}.
 #' @param validation_proportion \code{Numeric}. Proportion of data (0 to 1) allocated for validation if \code{create_validation = TRUE}. Default is \code{0.1}.
@@ -63,7 +63,7 @@ fit_extractor <- function (
   # Go to pretraining_objectives.R
   if (identical(pretraining_type, "SCARF")) {
     # SCARF pretraining
-    scarf_bundle <- scarf_fit(
+    trained_bundle <- scarf_fit(
       dataframe_train = dataframe_train,
       exclude_columns = exclude_columns,
       create_validation = create_validation,
@@ -73,10 +73,8 @@ fit_extractor <- function (
       preprocess = preprocess
     )
   } else if (identical(pretraining_type, "VIME")) {
-
-    print("VIME TRAINING :D")
     # VIME pretraining
-    vime_bundle <- vime_fit(
+    trained_bundle <- vime_fit(
       dataframe_train = dataframe_train,
       exclude_columns = exclude_columns,
       create_validation = create_validation,
@@ -95,12 +93,12 @@ fit_extractor <- function (
 
   # If save_path is not null, save model locally (it will be NULL when using it as a recipe, when stored in RAM)
   if (!is.null(save_path)){
-    torch::torch_save(vime_bundle, path = paste0(save_path, ".pt"))
+    torch::torch_save(trained_bundle, path = paste0(save_path, ".pt"))
     message("Pretrained model saved in ", save_path, ".pt")
   }
 
   # Return invisible for the recipe prep and bake
-  return(invisible(vime_bundle))
+  return(invisible(trained_bundle))
 
 
 }

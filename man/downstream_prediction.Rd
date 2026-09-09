@@ -7,7 +7,6 @@
 downstream_prediction(
   df_test,
   pretrained_model_path,
-  pretraining_type,
   label_column,
   classification_model_path,
   exclude_columns = NULL,
@@ -18,8 +17,6 @@ downstream_prediction(
 \item{df_test}{A \code{data.frame} representing the test/evaluation set.}
 
 \item{pretrained_model_path}{\code{String}. Path to the pretrained model for feature extraction (.pt file).}
-
-\item{pretraining_type}{A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it will use a SCARF pretrained module. Available options are \code{["SCARF"]}.}
 
 \item{label_column}{\code{String}. Name of the column containing the true labels (used for mapping or reporting).}
 
@@ -72,7 +69,6 @@ if (torch::torch_is_installed()) {
   train_classifier_on_extracted_features(
     df_train,
     tmp_scarf,
-    "SCARF",
     "target",
     num_classes = 2,
     exclude_columns = c("id", "target"),
@@ -82,7 +78,6 @@ if (torch::torch_is_installed()) {
   results <- downstream_prediction(
     df_test = df_test,
     pretrained_model_path = tmp_scarf,
-    pretraining_type = "SCARF",
     label_column = "target",
     classification_model_path = tmp_class,
     exclude_columns = c("id", "target"),

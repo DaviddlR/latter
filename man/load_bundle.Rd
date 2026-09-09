@@ -2,18 +2,16 @@
 % Please edit documentation in R/utils.R
 \name{load_bundle}
 \alias{load_bundle}
-\title{Function to read and check a SCARF bundle}
+\title{Function to read and check a bundle containing a pretrained model}
 \usage{
-load_bundle(bundle_path, pretraining_type = "SCARF")
+load_bundle(bundle_path)
 }
 \arguments{
-\item{bundle_path}{Path to file storing a "scarf_bundle" object}
-
-\item{pretraining_type}{A \code{character} indicating the pretraining objective used by the model stored in the bundle. Default is \code{"SCARF"}. Available options are \code{["SCARF"]}.}
+\item{bundle_path}{Path to file storing a bundle object, trained with "fit_extractor"}
 }
 \value{
 Pretrained model's weights and trained recipe for preprocessing
 }
 \description{
-Function to read and check a SCARF bundle
+Function to read and check a bundle containing a pretrained model
 }

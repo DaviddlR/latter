@@ -35,7 +35,7 @@ variables. Defaults to \code{"predictor"}.}
 been estimated.}
 
 \item{pretraining_type}{A character specifying the SSL method to use.
-Default is \code{'SCARF'}.}
+Default is \code{'SCARF'}. Available options are \code{["SCARF", "VIME"]}}
 
 \item{create_validation}{A \code{logical}. If \code{TRUE}, splits the
 training data to create a validation set. Default is \code{FALSE}.}

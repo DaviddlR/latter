@@ -25,7 +25,7 @@
 #' @param trained A logical to indicate if the quantities for preprocessing have
 #'   been estimated.
 #' @param pretraining_type A character specifying the SSL method to use.
-#' Default is \code{'SCARF'}.
+#' Default is \code{'SCARF'}. Available options are \code{["SCARF", "VIME"]}
 #' @param create_validation A \code{logical}. If \code{TRUE}, splits the
 #' training data to create a validation set. Default is \code{FALSE}.
 #' @param validation_proportion \code{Numeric}. Proportion of data (0 to 1)
@@ -196,7 +196,6 @@ bake.step_extract_latent <- function(object, new_data, ...) {
   extracted_data <- extract_features(
     dataframe = data_to_extract,
     pretrained_model = object$pretrained_model,
-    pretraining_type = object$pretraining_type,
     exclude_columns = NULL,
     want_labels = FALSE,
     label_column = NULL,

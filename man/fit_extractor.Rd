@@ -19,7 +19,7 @@ fit_extractor(
 \arguments{
 \item{dataframe_train}{A \code{data.frame} used to train de model.}
 
-\item{pretraining_type}{A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it follows SCARF pretraining. Available options are \code{["SCARF"]}.}
+\item{pretraining_type}{A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it follows SCARF pretraining. Available options are \code{["SCARF", "VIME"]}.}
 
 \item{exclude_columns}{A \code{character} of columns that the model should ignore during pretraining (i.e target or ID columns). Default is \code{NULL}.}
 

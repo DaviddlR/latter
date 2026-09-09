@@ -6,7 +6,6 @@
 #'
 #' @param df_train A \code{data.frame} containing the training samples and labels.
 #' @param pretrained_model_path \code{String}. Path to the pretrained model for feature extraction (.pt file).
-#' @param pretraining_type A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it will use a SCARF pretrained module. Available options are \code{["SCARF"]}.
 #' @param label_column \code{String}. Name of the column containing the labels. Required if \code{want_labels = TRUE}. Default is \code{NULL}.
 #' @param num_classes \code{Integer}. Total number of unique classes in the target column.
 #' @param exclude_columns A \code{string} of columns that the models should ignore (i.e target or ID columns). Default is \code{NULL}.
@@ -57,8 +56,9 @@
 #'   if (file.exists(paste0(tmp_class, ".pt"))) file.remove(paste0(tmp_class, ".pt"))
 #' }
 #' }
-train_classifier_on_extracted_features = function(df_train, pretrained_model_path, pretraining_type, label_column, num_classes, exclude_columns = NULL, parsnip_classification_model = NULL, classification_model_type = NULL, n_epochs = 50, dropout = 0.2, doitsmall = FALSE, save_path = "classifier") {
+train_classifier_on_extracted_features = function(df_train, pretrained_model_path, label_column, num_classes, exclude_columns = NULL, parsnip_classification_model = NULL, classification_model_type = NULL, n_epochs = 50, dropout = 0.2, doitsmall = FALSE, save_path = "classifier") {
 
+  # TODO: borrar pretraining_type. No sirve para nada
 
   if(doitsmall) {
 
@@ -75,7 +75,6 @@ train_classifier_on_extracted_features = function(df_train, pretrained_model_pat
   extracted_features <- extract_features(
     df_train,
     pretrained_model_path,
-    pretraining_type = pretraining_type,
     exclude_columns = exclude_columns,
     want_labels = TRUE,
     label_column = label_column)
@@ -236,7 +235,6 @@ train_classifier_on_extracted_features = function(df_train, pretrained_model_pat
 #'
 #' @param df_test A \code{data.frame} representing the test/evaluation set.
 #' @param pretrained_model_path \code{String}. Path to the pretrained model for feature extraction (.pt file).
-#' @param pretraining_type A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it will use a SCARF pretrained module. Available options are \code{["SCARF"]}.
 #' @param label_column \code{String}. Name of the column containing the true labels (used for mapping or reporting).
 #' @param classification_model_path \code{String}. Path prefix to the trained classifier bundle (excluding the ".pt" extension).
 #' @param exclude_columns A \code{string} of columns that the models should ignore (i.e target or ID columns). Default is \code{NULL}.
@@ -283,7 +281,6 @@ train_classifier_on_extracted_features = function(df_train, pretrained_model_pat
 #'   train_classifier_on_extracted_features(
 #'     df_train,
 #'     tmp_scarf,
-#'     "SCARF",
 #'     "target",
 #'     num_classes = 2,
 #'     exclude_columns = c("id", "target"),
@@ -293,7 +290,6 @@ train_classifier_on_extracted_features = function(df_train, pretrained_model_pat
 #'   results <- downstream_prediction(
 #'     df_test = df_test,
 #'     pretrained_model_path = tmp_scarf,
-#'     pretraining_type = "SCARF",
 #'     label_column = "target",
 #'     classification_model_path = tmp_class,
 #'     exclude_columns = c("id", "target"),
@@ -306,7 +302,7 @@ train_classifier_on_extracted_features = function(df_train, pretrained_model_pat
 #'
 #' }
 #'
-downstream_prediction = function(df_test, pretrained_model_path, pretraining_type, label_column, classification_model_path, exclude_columns = NULL, return_classification_report = FALSE) {
+downstream_prediction = function(df_test, pretrained_model_path, label_column, classification_model_path, exclude_columns = NULL, return_classification_report = FALSE) {
 
   # Load model
   fitted_classifier_bundle <- load_classifier_bundle(paste0(classification_model_path, ".pt"))
@@ -320,7 +316,6 @@ downstream_prediction = function(df_test, pretrained_model_path, pretraining_typ
   extracted_features_test <- extract_features(
     df_test,
     pretrained_model = pretrained_model_path,
-    pretraining_type = pretraining_type,
     exclude_columns = exclude_columns,
     want_labels = TRUE,
     label_column = label_column,

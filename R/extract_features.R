@@ -2,7 +2,6 @@
 #'
 #' @param dataframe A \code{data.frame} from which to extract features.
 #' @param pretrained_model \code{String} or \code{list}. Path to the pretrained SCARF model (.pt file) if String or SCARF bundle if \code{list}.
-#' @param pretraining_type A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it will use a SCARF pretrained module. Available options are \code{["SCARF"]}.
 #' @param exclude_columns A \code{string} of columns that the model should ignore during inference (i.e target or ID columns). Default is \code{NULL}.
 #' @param want_labels \code{Boolean}. If \code{TRUE}, the function extracts and returns the target labels alongside features. Default is \code{FALSE}.
 #' @param label_column \code{String}. Name of the column containing the labels. Required if \code{want_labels = TRUE}. Default is \code{NULL}.
@@ -46,7 +45,6 @@
 #' extracted <- extract_features(
 #'   dataframe = df_train,
 #'   pretrained_model = tmp_path,
-#'   pretraining_type = "SCARF",
 #'   exclude_columns = c("user_id", "cancellation"),
 #'   want_labels = TRUE,
 #'   label_column = "cancellation"
@@ -61,7 +59,6 @@
 extract_features = function(
   dataframe,
   pretrained_model,
-  pretraining_type = "SCARF",
   exclude_columns = NULL,
   want_labels = FALSE,
   label_column = NULL,
@@ -71,12 +68,13 @@ extract_features = function(
 
 
   # Load bundle (inside, it validates if it comes from a valid pretraining)
-  bundle <- load_bundle(bundle_path = pretrained_model, pretraining_type = pretraining_type)
+  bundle <- load_bundle(bundle_path = pretrained_model)
 
   # Extract encoder and recipe (if exists)
   fitted_encoder <- bundle$encoder
   trained_recipe <- bundle$recipe
   metadata_for_categorical <- bundle$metadata_for_cat
+
 
   # Prepare data
   if (want_labels & is.null(label_column)) {

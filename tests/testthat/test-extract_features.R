@@ -35,7 +35,6 @@ test_that("extract_features works with model saved on disk and returns labels", 
   features <- extract_features(
     dataframe = df,
     pretrained_model = tmp_file,
-    pretraining_type = "SCARF",
     exclude_columns = c("id", "target"),
     want_labels = TRUE,
     label_column = "target",
@@ -75,7 +74,6 @@ test_that("extract_features works with model bundle loaded in RAM", {
   features <- extract_features(
     dataframe = df,
     pretrained_model = pretrained_bundle,
-    pretraining_type = "SCARF",
     exclude_columns = c("id", "target"),
     want_labels = FALSE,
     batch_size = 8

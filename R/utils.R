@@ -1,8 +1,8 @@
 
 
-#' Function to read and check a SCARF bundle
+#' Function to read and check a bundle containing a pretrained model
 #'
-#' @param bundle_path Path to file storing a "scarf_bundle" object
+#' @param bundle_path Path to file storing a bundle object, trained with "fit_extractor"
 #' @returns Pretrained model's weights and trained recipe for preprocessing
 #'
 load_bundle = function(bundle_path) {
@@ -43,13 +43,20 @@ load_bundle = function(bundle_path) {
     # Load recipe
     trained_recipe <- unserialize(model_bundle$recipe)
 
+    # Load info for categorical data
+    info_for_categorical <- model_bundle$metadata_for_cat
+
     return(list(
       encoder = fitted_encoder,
-      recipe = trained_recipe
+      recipe = trained_recipe,
+      metadata_for_cat = info_for_categorical
+
     ))
 
   # VIME bundle
   } else if (is.list(model_bundle) && identical(model_bundle$bundle_type, "vime_bundle")) {
+
+    print("Extracting a VIME bundle")
 
     # Load encoder hyperparameters
     hparams <- model_bundle$encoder_hparams
@@ -68,9 +75,13 @@ load_bundle = function(bundle_path) {
     # Load recipe
     trained_recipe <- unserialize(model_bundle$recipe)
 
+    # Load info for categorical data
+    info_for_categorical <- model_bundle$metadata_for_cat
+
     return(list(
       encoder = fitted_encoder,
-      recipe = trained_recipe
+      recipe = trained_recipe,
+      metadata_for_cat = info_for_categorical
     ))
 
 
@@ -81,7 +92,11 @@ load_bundle = function(bundle_path) {
 
 
 
-
+#' Function to read and check a bundle containing a trained classifier
+#'
+#' @param bundle_path Path to file storing a bundle object, trained with "train_classifier_on_extracted_features"
+#' @returns The classifier model and levels for preprocessing
+#'
 load_classifier_bundle = function(bundle_path) {
 
   # Load pretrained model and recipe

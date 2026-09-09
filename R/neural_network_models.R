@@ -93,8 +93,6 @@ vime_encoder <- torch::nn_module(
 
 
   forward = function(x) {
-
-
     # Check categorical values
     if (self$num_cat > 0) {
       x_cat <- x[, (self$num_cont + 1):ncol(x), drop = FALSE]$to(dtype = torch::torch_long())  # Categorical are at the end
@@ -132,11 +130,18 @@ vime_encoder <- torch::nn_module(
 
 
 
-# VIME mask estimator
-# It measures the probability that each column has been corrupted. If predicted probability = 1, it means that the model believes
-# that the variable has been corrupted.
-# Input dimensions: output of the encoder
-# Output dimensions: number of columns of the original sample
+
+
+#' VIME mask estimator
+#'
+#' It measures the probability that each column has been corrupted. If predicted probability = 1, it means that the model believes that the variable has been corrupted.
+#'
+#' @param in_dim Number of input dimensions
+#' @param num_cont Number of continual (or numerical) columns in the dataset
+#' @param cat_dims Dimensions of categorical columns
+#'
+#' @returns A 'torch::nn_module' representing the mask estimator.
+#' @noRd
 vime_mask_estimator <- torch::nn_module(
 
   initialize = function(in_dim, num_cont, cat_dims) {
@@ -161,11 +166,21 @@ vime_mask_estimator <- torch::nn_module(
 )
 
 
-# VIME feature estimator
-# It reconstructs the original, actual values that the sample had before being corrupted
-# Input dimensions: output of the encoder
-# Output dimensions: embedding logits of each category.
+
+
+#' VIME feature estimator.
+#'
+#' It reconstructs the original, actual values that the sample had before being corrupted.
+#'
+#' @param in_dim Number of input dimensions.
+#' @param num_cont Number of continual (or numerical) columns in the dataset.
+#' @param cat_dims Dimensions of categorical columns.
+#'
+#' @return A 'torch::nn_module' representing the feature estimator.
+#'
+#' @noRd
 vime_feature_estimator <- torch::nn_module(
+
   initialize = function(in_dim, num_cont, cat_dims) {
 
     self$in_dim <- in_dim  # Dimensions of the output of the encoder
@@ -219,19 +234,23 @@ vime_feature_estimator <- torch::nn_module(
 
 
 
-# Wrapper
+
+
+#' VIME wrapper torch module containing the encoder and projection head
+#'
+#' @param num_cont Number of continual (or numerical) columns in the dataset.
+#' @param cat_dims Dimensions of categorical columns.
+#'
+#' @returns A 'torch::nn_module' representing the whole VIME method.
+#' @noRd
 vime_wrapper <- torch::nn_module(
+
 
   initialize = function(num_cont, cat_dims) {
 
     # Encoder
     self$vime_encoder <- vime_encoder(num_cont, cat_dims)
     output_dimension <- self$vime_encoder$output_dim
-
-    # print("WARPPER")
-    # print(output_dimension)
-    # print(num_cont)
-    # print(cat_dims)
 
     # Prediction heads
     self$feature_estimator <- vime_feature_estimator(output_dimension, num_cont, cat_dims)
@@ -276,13 +295,14 @@ vime_wrapper <- torch::nn_module(
 
 #' Basic encoder module. This is the official implementation of SCARF
 #'
-#' @param num_cont Number of numerical features.
-#' @param cat_dims Number of dimensions per categorical column.
+#' @param num_cont Number of continual (or numerical) columns in the dataset
+#' @param cat_dims Dimensions of categorical columns
 #' @param hidden_dim Number of hidden or latent features.
 #' @param num_hidden Number of blocks of layers of the encoder network.
 #' @param dropout Dropout probability.
 #'
 #' @return A 'torch::nn_module' representing the encoder.
+#' @noRd
 scarf_encoder <- torch::nn_module(
 
   name = "Scarf encoder",
@@ -385,12 +405,23 @@ scarf_encoder <- torch::nn_module(
 
 
 
-
+#' SCARF projection head torch module
+#'
+#' After the encoder module, a projection head projects the encoder's representation into a smaller latent space
+#'
+#' @param in_dim Number of input dimensions
+#' @param hidden_dim Number of hidden or latent features.
+#' @param num_hidden Number of blocks of layers of the encoder network.
+#' @param dropout Dropout probability.
+#'
+#' @returns A 'torch::nn_module' representing the projection head.
+#' @noRd
 scarf_projection_head <- torch::nn_module(
 
   name = "Scarf projection head",
 
   # Init
+
   initialize = function(in_dim, hidden_dim = 256, num_hidden = 4, dropout = 0.0) {
 
     layers <- list()
@@ -437,7 +468,18 @@ scarf_projection_head <- torch::nn_module(
 
 
 
-
+#' SCARF wrapper torch module containing the encoder and projection head
+#'
+#' @param num_cont Number of continual (or numerical) columns in the dataset
+#' @param cat_dims Dimensions of categorical columns
+#' @param hidden_dim Number of hidden or latent features of the encoder network.
+#' @param num_hidden Number of blocks of layers of the encoder network.
+#' @param head_hidden_dim Number of hidden or latent features of the projection head network.
+#' @param head_num_hidden Number of blocks of layers of the projection head network.
+#' @param dropout Dropout probability
+#'
+#' @returns A 'torch::nn_module' representing the whole SCARF method.
+#' @noRd
 SCARF_wrapper <- torch::nn_module(  # Something like SCARF lightning but we do not define train_step here
   name = "SCARF wrapper",
 

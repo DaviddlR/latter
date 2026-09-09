@@ -7,7 +7,6 @@
 train_classifier_on_extracted_features(
   df_train,
   pretrained_model_path,
-  pretraining_type,
   label_column,
   num_classes,
   exclude_columns = NULL,
@@ -23,8 +22,6 @@ train_classifier_on_extracted_features(
 \item{df_train}{A \code{data.frame} containing the training samples and labels.}
 
 \item{pretrained_model_path}{\code{String}. Path to the pretrained model for feature extraction (.pt file).}
-
-\item{pretraining_type}{A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it will use a SCARF pretrained module. Available options are \code{["SCARF"]}.}
 
 \item{label_column}{\code{String}. Name of the column containing the labels. Required if \code{want_labels = TRUE}. Default is \code{NULL}.}
 
