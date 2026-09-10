@@ -1,6 +1,9 @@
 
 
 
+# TODO: Export las arquitecturas de los modelos ????
+
+
 
 #' Classification Head torch module.
 #'
@@ -470,13 +473,13 @@ scarf_projection_head <- torch::nn_module(
 
 #' SCARF wrapper torch module containing the encoder and projection head
 #'
-#' @param num_cont Number of continual (or numerical) columns in the dataset
-#' @param cat_dims Dimensions of categorical columns
+#' @param num_cont \code{Integer}. Number of continual (or numerical) columns in the dataset.
+#' @param cat_dims \code{List}. Dimensions of categorical columns.
 #' @param hidden_dim Number of hidden or latent features of the encoder network.
 #' @param num_hidden Number of blocks of layers of the encoder network.
 #' @param head_hidden_dim Number of hidden or latent features of the projection head network.
 #' @param head_num_hidden Number of blocks of layers of the projection head network.
-#' @param dropout Dropout probability
+#' @param dropout Dropout probability.
 #'
 #' @returns A 'torch::nn_module' representing the whole SCARF method.
 #' @noRd

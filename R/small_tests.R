@@ -15,7 +15,7 @@ test_scarf_iris = function() {
   rec_trained_iris <- recipes::prep(rec_spec_iris, training = iris)
 
   # 3. Aplicar la receta (Ejecuta el BAKE)
-  message("Aplicando transformación latente...")
+  message("Aplicando transformacion latente...")
   iris_transformed <- recipes::bake(rec_trained_iris, new_data = iris)
 
   # 4. Verificaciones de éxito:
@@ -37,11 +37,10 @@ test_scarf_unswnb15 = function() {
   rec_spec_unsw <- recipes::recipe(attack_cat ~ ., data = df_train) |>
     recipes::step_rm(label) |>  # Exclude columns
     recipes::step_novel(recipes::all_nominal_predictors(), new_level = "unknown") |>
-    recipes::step_dummy(recipes::all_nominal_predictors(), one_hot = TRUE) |>
     recipes::step_zv(recipes::all_predictors()) |>
     recipes::step_normalize(recipes::all_numeric_predictors()) |>
     # Al usar all_numeric_predictors(), ya NO incluirá ni 'attack_cat' ni 'label'
-    step_extract_latent(recipes::all_numeric_predictors(), epochs = 2, batch_size = 512)
+    step_extract_latent(recipes::all_predictors(), epochs = 2, batch_size = 512)
 
   # 2. Entrenar la receta (PREP)
   # Esto dummificará, normalizará y entrenará tu modelo SCARF
@@ -53,7 +52,9 @@ test_scarf_unswnb15 = function() {
   unsw_transformed <- recipes::bake(rec_trained_unsw, new_data = df_train)
 
   # 4. Verificaciones de éxito:
+  print(names(unsw_transformed))
   print(dim(unsw_transformed))
+  print(unsw_transformed)
   # Debería tener las mismas filas que tu dataset original,
   # y exactamente 257 columnas (attack_cat + 256 de SCARF)
 
@@ -61,7 +62,7 @@ test_scarf_unswnb15 = function() {
   sum(c("label", "dur", "proto", "service") %in% names(unsw_transformed))
   # Debería dar 0 (las variables originales numéricas y dummificadas fueron reemplazadas)
 
-  "attack_cat" %in% names(unsw_transformed)
+  print("attack_cat" %in% names(unsw_transformed))
   # Debería dar TRUE
 
   names(unsw_transformed)[!grepl("extracted_dim_", names(unsw_transformed))]

@@ -51,14 +51,14 @@ during training. Default is \code{256}.}
 Default is \code{150}.}
 
 \item{batch_size_inference}{An integer specifying the batch size during the
-inference or transformation phase (\code{bake}). Default is \code{32}}
+inference or transformation phase (\code{bake}). Default is \code{32}.}
 
 \item{pretrained_model}{The pretrained model object once the step has been
 executed by \code{prep()}.}
 
-\item{columns}{Columns to be processed. Should not be modified. Default is \code{NULL}}
+\item{columns}{Columns to be processed. Should not be modified. Default is \code{NULL}.}
 
-\item{skip}{A logical. Should the step be skipped when the recipe is baked
+\item{skip}{A logical. Should the step be skipped when the recipe is baked.
 by \code{bake()}? Defaults to \code{FALSE} so that the transformation is
 applied to both training and test sets.}
 
@@ -70,17 +70,6 @@ added to the sequence of operations.
 }
 \description{
 Extract latent features using Self-Supervised Learning methods
-}
-\details{
-The algorithms that can be used for feature extraction require each predictor
- to be numerical. For that reason, if your dataset
-contains categorical data, before using this step, you must:
-\itemize{
-  \item Impute missing values (i.e. \code{step_impute_median()})
-  \item Convert categorical data to numerical data (i.e.
-  \code{step_dummy(..., one_hot = TRUE)})
-  \item Normalize numerical data (i.e. \code{step_nomalize()})
-}
 }
 \examples{
 a <- 1

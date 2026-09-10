@@ -11,9 +11,13 @@ vime_fit = function(
 ) {
 
   # Load and preprocess data
-  print("##############    PREPARE DATA")
-  preprocessed_datasets <- prepare_data(dataframe_train, exclude_columns = exclude_columns, create_validation = create_validation, validation_proportion = validation_proportion, preprocess = preprocess)
-  print("##############    END PREPARE DATA")
+  preprocessed_datasets <- prepare_data(
+    dataframe_train,
+    exclude_columns = exclude_columns,
+    create_validation = create_validation,
+    validation_proportion = validation_proportion,
+    preprocess = preprocess
+  )
 
   x_train <- preprocessed_datasets$train_set
   x_val <- preprocessed_datasets$val_set  # May be null
@@ -21,9 +25,7 @@ vime_fit = function(
   metadata_for_cat <- preprocessed_datasets$metadata_for_cat
 
   # Create training dataset and dataloader
-  print("##############    CREATE TENSOR DATASET")
   train_ds <- create_tensor_dataset(x_train)
-  print("##############    END CREATE TENSOR DATASET")
 
   train_dl <- torch::dataloader(train_ds,
                                 batch_size = batch_size,
@@ -53,12 +55,7 @@ vime_fit = function(
     ) |>
     luz::set_hparams(
       num_cont = num_cont,
-      cat_dims = cat_dims,
-      # hidden_dim = 256,
-      # num_hidden = 4,
-      # head_hidden_dim = 256,
-      # head_num_hidden = 2,
-      # dropout = 0.0
+      cat_dims = cat_dims
     ) |>
     luz::set_opt_hparams(
       lr = 0.0001
@@ -71,14 +68,12 @@ vime_fit = function(
     )
 
 
-  print("FIT ENDED")
-
   # Save trained model AND the recipe required to apply the same preprocessing to the test set
   encoder_weights <- fitted$model$vime_encoder$state_dict()
 
   hparams <- list(
     num_cont = num_cont,
-    cat_dims = cat_dims,
+    cat_dims = cat_dims
   )
 
   model_bundle <- list(

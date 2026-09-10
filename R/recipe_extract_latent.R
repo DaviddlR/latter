@@ -1,19 +1,22 @@
 
+# @details
+# The algorithms that can be used for feature extraction require each predictor
+#  to be numerical. For that reason, if your dataset
+# contains categorical data, before using this step, you must:
+# \itemize{
+#   \item Impute missing values (i.e. \code{step_impute_median()})
+#   \item Convert categorical data to numerical data (i.e.
+#   \code{step_dummy(..., one_hot = TRUE)})
+#   \item Normalize numerical data (i.e. \code{step_nomalize()})
+# }
+#    DEPRECATED. NOW USERS DO NOT NEED TO REMOVE CATEGORICAL COLUMNS
+
+
+
 
 
 #' Extract latent features using Self-Supervised Learning methods
 #'
-#'
-#' @details
-#' The algorithms that can be used for feature extraction require each predictor
-#'  to be numerical. For that reason, if your dataset
-#' contains categorical data, before using this step, you must:
-#' \itemize{
-#'   \item Impute missing values (i.e. \code{step_impute_median()})
-#'   \item Convert categorical data to numerical data (i.e.
-#'   \code{step_dummy(..., one_hot = TRUE)})
-#'   \item Normalize numerical data (i.e. \code{step_nomalize()})
-#' }
 #'
 #'
 #' @param recipe A recipe object. The step will be added to the sequence of
@@ -36,11 +39,11 @@
 #' @param epochs An \code{integer} defining the number of training epochs.
 #' Default is \code{150}.
 #' @param batch_size_inference An integer specifying the batch size during the
-#' inference or transformation phase (\code{bake}). Default is \code{32}
+#' inference or transformation phase (\code{bake}). Default is \code{32}.
 #' @param pretrained_model The pretrained model object once the step has been
 #' executed by \code{prep()}.
-#' @param columns Columns to be processed. Should not be modified. Default is \code{NULL}
-#' @param skip A logical. Should the step be skipped when the recipe is baked
+#' @param columns Columns to be processed. Should not be modified. Default is \code{NULL}.
+#' @param skip A logical. Should the step be skipped when the recipe is baked.
 #' by \code{bake()}? Defaults to \code{FALSE} so that the transformation is
 #' applied to both training and test sets.
 #' @param id A character string that is unique to this step to identify it.
@@ -263,6 +266,8 @@ tidy.step_extract_latent <- function(x, ...) {
 }
 
 
+
+# TODO
 # Required packages
 #' @importFrom recipes required_pkgs
 #' @export

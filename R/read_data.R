@@ -15,6 +15,7 @@
 #' @param preprocess \code{Boolean}. Set if the data need preprocessing steps using 'recipes', such as 'step_normalize' or 'step_dummy'. Default is \code{TRUE}, meaning that this process is automatically done.
 #'
 #' @returns A torch::matrix representing the dataframe ready for feature extraction
+#' @noRd
 prepare_data_for_feature_extraction = function(dataframe, trained_recipe, categorical_metadata, exclude_columns = NULL, want_labels = FALSE, label_column = NULL, preprocess = TRUE) {
   df_extract <- as.data.frame(dataframe)
 
@@ -48,9 +49,9 @@ prepare_data_for_feature_extraction = function(dataframe, trained_recipe, catego
     x_extract_mat <- as.matrix(x_extract)
   }
 
-  print("Dataset ready for feature extraction: ")
-  print(dim(x_extract_mat))
-  print(length(label_data))
+  # print("Dataset ready for feature extraction: ")
+  # print(dim(x_extract_mat))
+  # print(length(label_data))
 
   return (list(
     x = x_extract_mat,
@@ -74,6 +75,7 @@ prepare_data_for_feature_extraction = function(dataframe, trained_recipe, catego
 #' @param preprocess \code{Boolean}. Set if the data need preprocessing steps using 'recipes', such as 'step_normalize' or 'step_dummy'. Default is \code{TRUE}, meaning that this process is automatically done.
 #'
 #' @returns Preprocessed train dataset (and validation set if required) and the recipes::recipe used for preprocessing
+#' @noRd
 prepare_data = function(dataframe_train, exclude_columns = NULL, create_validation = FALSE, validation_proportion = 0.1, preprocess = TRUE) {
 
   df_train_data <- as.data.frame(dataframe_train)
@@ -166,7 +168,6 @@ prepare_data = function(dataframe_train, exclude_columns = NULL, create_validati
   }
 
 
-  print("donde estoy??????????????????????????????")
   return (list("train_set" = x_train,
                "val_set" = x_val,
                "recipe" = optimized_recipe,

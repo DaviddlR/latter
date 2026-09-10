@@ -17,7 +17,7 @@ extract_features(
 \arguments{
 \item{dataframe}{A \code{data.frame} from which to extract features.}
 
-\item{pretrained_model}{\code{String} or \code{list}. Path to the pretrained SCARF model (.pt file) if String or SCARF bundle if \code{list}.}
+\item{pretrained_model}{\code{String} or \code{list}. Path to the pretrained model (.pt file) if String or a bundle if \code{list}.}
 
 \item{exclude_columns}{A \code{string} of columns that the model should ignore during inference (i.e target or ID columns). Default is \code{NULL}.}
 

@@ -4,7 +4,7 @@
 #'
 #' @param bundle_path Path to file storing a bundle object, trained with "fit_extractor"
 #' @returns Pretrained model's weights and trained recipe for preprocessing
-#'
+#' @noRd
 load_bundle = function(bundle_path) {
 
 
@@ -96,7 +96,7 @@ load_bundle = function(bundle_path) {
 #'
 #' @param bundle_path Path to file storing a bundle object, trained with "train_classifier_on_extracted_features"
 #' @returns The classifier model and levels for preprocessing
-#'
+#' @noRd
 load_classifier_bundle = function(bundle_path) {
 
   # Load pretrained model and recipe

@@ -1,7 +1,7 @@
 #' Extract latent features from a given dataset using a pretrained SCARF model.
 #'
 #' @param dataframe A \code{data.frame} from which to extract features.
-#' @param pretrained_model \code{String} or \code{list}. Path to the pretrained SCARF model (.pt file) if String or SCARF bundle if \code{list}.
+#' @param pretrained_model \code{String} or \code{list}. Path to the pretrained model (.pt file) if String or a bundle if \code{list}.
 #' @param exclude_columns A \code{string} of columns that the model should ignore during inference (i.e target or ID columns). Default is \code{NULL}.
 #' @param want_labels \code{Boolean}. If \code{TRUE}, the function extracts and returns the target labels alongside features. Default is \code{FALSE}.
 #' @param label_column \code{String}. Name of the column containing the labels. Required if \code{want_labels = TRUE}. Default is \code{NULL}.
@@ -135,42 +135,6 @@ extract_features = function(
   ))
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-scarf_feature_extractor = function(
-    dataframe,
-    pretrained_model,
-    exclude_columns = NULL,
-    want_labels = FALSE,
-    label_column = NULL,
-    batch_size = 32,
-    preprocess = TRUE
-  ) {
-
-  print("scarf_feature_extractor: you should not be here, I will be removed soon D:")
-
-
-}
-
-
 
 
 
