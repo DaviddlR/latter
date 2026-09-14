@@ -251,6 +251,49 @@ encode_categorical_data = function(data, metadata = NULL) {
 
 
 
+#' Get bins to encode numerical features
+#'
+#' @param dataset_train Training partition of the dataset
+#' @param T Number of target bins. Default: 10
+#'
+#' @returns A named list where each element contains the vector of bin cuts for a numerical feature
+get_bins = function(dataset_train, T = 10) {
+
+  dataset_train <- as.data.frame(dataset_train)
+
+  # At this point, every feature is numerical. Categorical via encode
+  cols <- names(dataset_train)
+
+
+  bins <- lapply(cols, function(col) {
+    x <- na.omit(dataset_train[[col]])  # Remove possible NaN
+    n_unique <- length(unique(x))
+
+    if (n_unique < T) {
+      cuts <- sort(unique(x))
+    } else {
+      cuts <- quantile(x, probs = seq(0, 1, length.out = T + 1), type = 7, names = FALSE)
+      cuts <- unique(cuts)
+    }
+
+    return (cuts)
+  })
+
+  names(bins) <- cols
+
+  print(bins)
+
+  return (bins)
+
+}
+
+
+apply_bins = function(dataset, bins) {
+
+}
+
+
+
 
 
 

@@ -16,7 +16,15 @@
 #'
 #' @returns A torch::matrix representing the dataframe ready for feature extraction
 #' @noRd
-prepare_data_for_feature_extraction = function(dataframe, trained_recipe, categorical_metadata, exclude_columns = NULL, want_labels = FALSE, label_column = NULL, preprocess = TRUE) {
+prepare_data_for_feature_extraction = function(
+    dataframe,
+    trained_recipe,
+    categorical_metadata,
+    exclude_columns = NULL,
+    want_labels = FALSE,
+    label_column = NULL,
+    preprocess = TRUE
+) {
   df_extract <- as.data.frame(dataframe)
 
   # Get label if needed
@@ -64,9 +72,7 @@ prepare_data_for_feature_extraction = function(dataframe, trained_recipe, catego
 
 
 
-
-
-#' Prepare data for SCARF pretraining
+#' Prepare data for SCARF and VIME pretraining
 #'
 #' @param dataframe_train Train dataframe
 #' @param exclude_columns Columns that the pretraining model should avoid (i.e target or ID columns)
@@ -76,7 +82,13 @@ prepare_data_for_feature_extraction = function(dataframe, trained_recipe, catego
 #'
 #' @returns Preprocessed train dataset (and validation set if required) and the recipes::recipe used for preprocessing
 #' @noRd
-prepare_data = function(dataframe_train, exclude_columns = NULL, create_validation = FALSE, validation_proportion = 0.1, preprocess = TRUE) {
+prepare_data = function(
+    dataframe_train,
+    exclude_columns = NULL,
+    create_validation = FALSE,
+    validation_proportion = 0.1,
+    preprocess = TRUE
+) {
 
   df_train_data <- as.data.frame(dataframe_train)
 
