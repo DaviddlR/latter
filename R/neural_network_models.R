@@ -41,6 +41,112 @@ classifier_network <- torch::nn_module(
 
 
 
+binning_encoder <- torch::nn_module(
+  name = "binning_basic_encoder",
+
+  initialize = function(num_cont, cat_dims, hidden_dim = 256, num_hidden = 4) {
+
+    self$num_cont <- num_cont
+    self$cat_dims <- cat_dims
+
+    self$num_cat <- length(cat_dims)
+
+    if (self$num_cat > 0) {
+      self$emb_dims <- sapply(cat_dims, function(x) min(50, ceiling((x + 1) / 2)))  # How many dimensions each embedding
+
+      # Embedding module
+      self$embeddings <- torch::nn_module_list(  # For each categorical, an embedding layer
+        lapply(seq_along(cat_dims), function(i) {
+          torch::nn_embedding(
+            num_embeddings = cat_dims[i] + 2, # + 2 for out of range
+            embedding_dim = self$emb_dims[i]
+          )
+        })
+      )
+
+      total_in_dim <- num_cont + sum(self$emb_dims)
+      # print(total_in_dim)
+    } else {
+      total_in_dim <- num_cont
+    }
+
+
+
+    layers <- list()
+
+    index_layer <- 1
+
+    if (num_hidden > 1){
+      for (i in 1:(num_hidden - 1)){
+
+        # Linear layer
+        layers[[index_layer]] <- torch::nn_linear(total_in_dim, hidden_dim)
+        index_layer <- index_layer + 1
+
+        # Batch norm layer
+        #layers[[index_layer]] <- torch::nn_batch_norm1d(hidden_dim)
+        #index_layer <- index_layer + 1
+
+        # RELU
+        layers[[index_layer]] <- torch::nn_relu(inplace=TRUE)
+        index_layer <- index_layer + 1
+
+        # Dropout
+        #layers[[index_layer]] <- torch::nn_dropout(dropout)
+        #index_layer <- index_layer + 1
+
+        # Update in_dim after first layer
+        total_in_dim <- hidden_dim
+
+      }
+    }
+
+    layers[[index_layer]] <- torch::nn_linear(total_in_dim, hidden_dim)
+
+    # Main encoder module
+    self$encoder <- do.call(torch::nn_sequential, layers)
+
+
+
+
+
+
+  },
+
+  forward = function(x) {
+
+  }
+
+)
+
+
+
+binning_decoder <- torch::nn_module(
+  name = "binning_decoder",
+
+  initialize = function() {
+
+  },
+
+  forward = function(x) {
+
+  }
+)
+
+
+binning_wrapper <- torch::nn_module(
+  name = "binning_wrapper",
+
+  initialize = function() {
+
+  },
+
+  forward = function() {
+
+  }
+
+)
+
 
 
 

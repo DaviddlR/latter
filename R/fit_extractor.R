@@ -1,6 +1,7 @@
-#' Trains a SCARF encoder using a contrastive loss objective. It prepares the data using a recipe, applies random feature corruption and fits the model.
+#' Trains an encoder using different self-supervised objectives. It prepares the data using a recipe, applies random feature corruption and fits the model.
 #'
 #' @param dataframe_train A \code{data.frame} used to train de model.
+#' @param handle_categorical A \code{character} used during \code{"Binning"} training that indicates how to manage the categorical features. Available options are \code{["None"]}
 #' @param pretraining_type A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it follows SCARF pretraining. Available options are \code{["SCARF", "VIME", "Binning"]}.
 #' @param exclude_columns A \code{character} of columns that the model should ignore during pretraining (i.e target or ID columns). Default is \code{NULL}.
 #' @param create_validation \code{Boolean}. If \code{TRUE}, splits the training data to create a validation set. Default is \code{FALSE}.
@@ -49,6 +50,7 @@
 #'
 fit_extractor <- function (
     dataframe_train,
+    handle_categorical = "None",
     pretraining_type = "SCARF",
     exclude_columns = NULL,
     create_validation = FALSE,
@@ -89,6 +91,7 @@ fit_extractor <- function (
     # Bimming as a pretext task pretraining
     trained_bundle <- binning_fit(
       dataframe_train = dataframe_train,
+      handle_categorical = "None",
       exclude_columns = exclude_columns,
       create_validation = create_validation,
       validation_proportion = validation_proportion,

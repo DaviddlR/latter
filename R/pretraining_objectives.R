@@ -4,6 +4,7 @@
 ############ BINNING PRETRAINING ############
 binning_fit = function(
     dataframe_train,
+    handle_categorical = "top_frequent",   # None means do it exactly how it is done in the original paper
     exclude_columns = NULL,
     create_validation = FALSE,
     validation_proportion = 0.1,
@@ -28,9 +29,56 @@ binning_fit = function(
 
   #print(x_train)
 
-  bins <- get_bins(x_train)
-  x_train <- apply_bins(x_train, bins)
-  x_val <- apply_bins(x_val, bins)
+  bins <- get_bins(x_train, metadata_for_cat = metadata_for_cat, T = 10, handle_categorical = handle_categorical)
+  #x_train_binned <- apply_bins(x_train, bins)
+  #x_val_binned <- apply_bins(x_val, bins)
+
+  # print(x_train) # --> Binning done
+
+
+  # Create training dataset and dataloader
+  # train_ds <- create_tensor_dataset(x_train)
+  #
+  # train_dl <- torch::dataloader(train_ds,
+  #                               batch_size = batch_size,
+  #                               shuffle = TRUE)
+  #
+  # # Create validation dataset and dataloader (if required)
+  # val_dl <- NULL
+  #
+  # if(create_validation) {
+  #   val_ds <- create_tensor_dataset(x_val)
+  #
+  #   val_dl <- torch::dataloader(val_ds,
+  #                               batch_size = batch_size,
+  #                               shuffle=FALSE)
+  # }
+  #
+  #
+  # num_cont <- length(metadata_for_cat$num_cols)
+  # cat_dims <- metadata_for_cat$cat_dims
+  #
+  #
+  # # Create wrapper (TODO:)
+  # fitted <- binning_wrapper |>
+  #   luz::setup(
+  #     loss = vime_loss(alpha = 1.0, num_cont = num_cont, cat_dims = cat_dims),
+  #     optimizer = torch::optim_adam  # Check
+  #   ) |>
+  #   luz::set_hparams(
+  #     num_cont = num_cont,
+  #     cat_dims = cat_dims
+  #   ) |>
+  #   luz::set_opt_hparams(
+  #     lr = 0.0001
+  #   ) |>
+  #   luz::fit(
+  #     train_dl,
+  #     epochs = n_epochs,
+  #     valid_data = val_dl,
+  #     callbacks = list(custom_vime_step_callback(corruption_rate = 0.6))
+  #   )
+
 
 }
 
