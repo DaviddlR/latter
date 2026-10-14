@@ -30,8 +30,12 @@ binning_fit = function(
   #print(x_train)
 
   bins <- get_bins(x_train, metadata_for_cat = metadata_for_cat, T = 10, handle_categorical = handle_categorical)
-  #x_train_binned <- apply_bins(x_train, bins)
-  #x_val_binned <- apply_bins(x_val, bins)
+  x_train_binned <- apply_bins(x_train, bins)
+
+  print("----- BINNED -----")
+  print(x_train_binned)
+
+  x_val_binned <- apply_bins(x_val, bins)  # TODO: test que verifique que esto funciona si val es NULL
 
   # print(x_train) # --> Binning done
 

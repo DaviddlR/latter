@@ -115,20 +115,100 @@ binning_encoder <- torch::nn_module(
 
   forward = function(x) {
 
+    if (self$num_cat > 0) {
+      x_cat <- x[, (self$num_cont + 1):x$size(2), drop = FALSE]$to(dtype = torch::torch_long())
+
+      embedded_list <- list()
+
+      for (i in seq_len(x_cat$size(2))) {
+        embedded_list[[i]] <- self$embeddings[[i]](x_cat[, i])
+      }
+      x_emb <- torch::torch_cat(embedded_list, dim = 2)
+
+      if (self$num_cont > 0) {
+        x_cont <- x[, 1:self$num_cont, drop = FALSE]
+        x_prepared <- torch::torch_cat(list(x_cont, x_emb), dim = 2)
+      } else {
+        x_prepared <- x_emb
+      }
+    } else {
+      x_prepared <- x
+    }
+
+    self$encoder(x_prepared)
+
+
   }
 
 )
 
 
-
+#' BinXent decoder
+#'
+#' A network of n_layers - 1 blocks followed by a head that produces T logits per column
+#'
+#' @param in_dim Size of the representation z.
+#' @param n_bins Integer vector with the number of bins of each column.
+#' @param T Maximum number of bins (output classes per column).
+#' @param n_layers Same value as in the encoder.
+#' @param head "linear" or "conv1x1".
+#' @param mask_invalid If TRUE, classes k > n_bins[j] are masked in column j.
+#'
+#' @returns
+#'
+#' @noRd
 binning_decoder <- torch::nn_module(
   name = "binning_decoder",
 
-  initialize = function() {
+
+  initialize = function(in_dim, n_bins, T, n_layers = 2, head = "linear", mask_invalid = TRUE) {
+
+    self$n_columns <- length(n_bins)
+    self$n_classes <- T
+    self$head_type <- head
+    self$mask_invalid <- mask_invalid
+
+    layers <- list()
+
+    for (l in seq_len(n_layers - 1)) {
+      layers[[length(layers) + 1]] <- torch::nn_linear(in_dim, in_dim)
+      layers[[length(layers) + 1]] <- torch::nn_relu()
+    }
+    self$main_decoder <- if (length(layers) > 0) do.call(torch::nn_sequential, layers) else torch::nn_identity()
+
+    if (head == "linear") {
+      self$head <- torch::nn_linear(in_dim, self$n_columns * T)
+    } else {
+      self$head <- torch::nn_linear(in_dim, self$n_columns)
+      # same default init as Conv2d(1, T, 1): U(-1, 1) because fan_in = 1
+      self$bin_weight <- torch::nn_parameter(torch::torch_empty(T)$uniform_(-1, 1))
+    }
+
+    # [d, T] logical matrix: TRUE where class k is not a valid bin of column j
+    invalid <- outer(n_bins, seq_len(T), "<")
+    self$register_buffer("invalid_mask", torch::torch_tensor(invalid))
+
+
+
 
   },
 
-  forward = function(x) {
+  forward = function(z) {
+
+    h <- self$main_decoder(z)
+
+    if (self$head_type == "linear") {
+      prediction <- self$head(h)$view(c(-1, self$n_columns, self$n_classes))
+    } else {
+      s <- self$head(h)
+      prediction <- s$unsqueeze(3) * self$bin_weight$view(c(1, 1, self$n_classes))
+    }
+
+    if (self$mask_invalid) {
+      prediction <- prediction$masked_fill(self$invalid_mask, -1e9)
+    }
+
+    return (prediction)
 
   }
 )

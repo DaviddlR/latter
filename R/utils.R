@@ -296,7 +296,7 @@ get_bins = function(dataset_train, metadata_for_cat = NULL, T = 10, handle_categ
     # Check correct encoding
     codes <- check_codes(dataset_train[, j], cat_dims[i], j)
 
-    features[[j]] <- bin_categorical(dataset_train[, i], cat_dims[i], T)
+    features[[j]] <- bin_categorical(codes, cat_dims[i], T)
   }
 
   print(features)
@@ -323,7 +323,13 @@ bin_categorical <- function(x, dimension, T) {
 
   # Case A: unique values are less than T -> one bin per value
   if (dimension <= T) {
-    return (list(type = "categorical", K = dimension, map = seq_len(dimension), n_bins = dimension, other_share = NULL))
+    return (list(
+      type = "categorical",
+      K = dimension,
+      map = seq_len(dimension),
+      n_bins = dimension,
+      other_share = NULL
+    ))
   }
 
   # Case B: unique values are bigger than T -> T-1 most frequent levels at its own category + bin "Others"
@@ -362,7 +368,7 @@ bin_numeric <- function(x, T) {
   }
 
   # Case B: unique values are bigger than T -> compute cuantiles
-  cuts <- stats::quantile(x, probs = seq(0, 1, length.out = T + 1), type = 7, names = FALSE)
+  cuts <- unique(stats::quantile(x, probs = seq_len(T - 1) / T, type = 7, names = FALSE))
   cuts <- unique(cuts)
 
   # Check unused bins
@@ -373,7 +379,13 @@ bin_numeric <- function(x, T) {
   map <- vapply(seq_len(length(cuts) + 1L),
                 function(r) which.min(abs(used - r)), integer(1))
 
-  return (list(type = "numeric", cuts = cuts, map = map, n_bins = length(used), n_uniques = length(u)))
+  return (list(
+    type = "numeric",
+    cuts = cuts,
+    map = map,
+    n_bins = length(used),
+    n_uniques = length(u)
+  ))
 }
 
 
@@ -381,18 +393,52 @@ bin_numeric <- function(x, T) {
 check_codes <- function(x, dims, j) {
   codes <- as.integer(round(x))
 
-
-
-  if (any(codes < 0 | codes > dims - 1)) {
+  if (any(codes < 0L | codes > dims - 1L)) {
     print(codes)
     print(unique(codes))
     stop("Column ", j, ": categorical codes must be in 0..", dims - 1,
          " (found values outside that range).")
   }
 
-  return (codes)
+  return (codes + 1L)
 
 }
+
+
+apply_bins <- function(x, bins) {
+  if (is.null(x)) return(NULL)  # For instance, if there is no validation set
+
+  x <- as.matrix(x)
+
+  d <- length(bins$features)
+  if (ncol(x) != d) stop("x has ", ncol(x), " columns, expected ", d, ".")
+  if (anyNA(x)) stop("x contains NAs; impute them before binning.")
+
+  output <- matrix(NA_integer_, nrow = nrow(x), ncol = d, dimnames = dimnames(x))
+
+  for (j in seq_len(d)) {
+    feature <- bins$features[[j]]  # get_bins -> returned structure
+
+    if (feature$type == "numeric") {
+      raw <- if (length(feature$cuts) == 0) rep(1L, nrow(x)) else findInterval(x[, j], feature$cuts) + 1L
+      output[, j] <- feature$map[raw]
+
+    } else if (feature$type == "categorical") {
+      code <- check_codes(x[,j], feature$K, j)
+      output[, j] <- feature$map[code]
+
+    } else {
+      stop("The created bins has an erroneous type")
+    }
+  }
+
+  return (output)
+}
+
+
+
+
+
 
 
 # TODO: dependiendo de cómo gestionar las categóricas, llamará a una u otra función. Ahora mismo lo hace como "none", siguiendo el paper.
@@ -402,7 +448,7 @@ check_codes <- function(x, dims, j) {
 #' @param T Number of target bins. Default: 10
 #'
 #' @returns A named list where each element contains the vector of bin cuts for a numerical feature
-.remove_get_bins = function(dataset_train, T = 10, handle_categorical = "None") {
+.remove_get_bins <- function(dataset_train, T = 10, handle_categorical = "None") {
 
   if (!identical(handle_categorical, "top_frequent")) {
     stop("Only handle_categorical = 'top_frequent' is implemented")
@@ -441,7 +487,7 @@ check_codes <- function(x, dims, j) {
 }
 
 
-apply_bins = function(dataset, cuts) {
+.remove_apply_bins = function(dataset, cuts) {
   binned_dataset <- as.data.frame(dataset)
 
   for (col in names(cuts)) {
