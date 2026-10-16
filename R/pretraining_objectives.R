@@ -33,56 +33,78 @@ binning_fit = function(
   x_train_binned <- apply_bins(x_train, bins)
 
   print("----- BINNED -----")
-  print(x_train_binned)
+  #print(x_train_binned)
 
   x_val_binned <- apply_bins(x_val, bins)  # TODO: test que verifique que esto funciona si val es NULL
 
-  # print(x_train) # --> Binning done
-
-
   # Create training dataset and dataloader
-  # train_ds <- create_tensor_dataset(x_train)
-  #
-  # train_dl <- torch::dataloader(train_ds,
-  #                               batch_size = batch_size,
-  #                               shuffle = TRUE)
-  #
-  # # Create validation dataset and dataloader (if required)
-  # val_dl <- NULL
-  #
-  # if(create_validation) {
-  #   val_ds <- create_tensor_dataset(x_val)
-  #
-  #   val_dl <- torch::dataloader(val_ds,
-  #                               batch_size = batch_size,
-  #                               shuffle=FALSE)
-  # }
-  #
-  #
-  # num_cont <- length(metadata_for_cat$num_cols)
-  # cat_dims <- metadata_for_cat$cat_dims
-  #
-  #
-  # # Create wrapper (TODO:)
-  # fitted <- binning_wrapper |>
-  #   luz::setup(
-  #     loss = vime_loss(alpha = 1.0, num_cont = num_cont, cat_dims = cat_dims),
-  #     optimizer = torch::optim_adam  # Check
-  #   ) |>
-  #   luz::set_hparams(
-  #     num_cont = num_cont,
-  #     cat_dims = cat_dims
-  #   ) |>
-  #   luz::set_opt_hparams(
-  #     lr = 0.0001
-  #   ) |>
-  #   luz::fit(
-  #     train_dl,
-  #     epochs = n_epochs,
-  #     valid_data = val_dl,
-  #     callbacks = list(custom_vime_step_callback(corruption_rate = 0.6))
-  #   )
+  train_ds <- create_tensor_dataset(x_train)
 
+  train_dl <- torch::dataloader(train_ds,
+                                batch_size = batch_size,
+                                shuffle = TRUE)
+
+  # Create validation dataset and dataloader (if required)
+  val_dl <- NULL
+
+  if(create_validation) {
+    val_ds <- create_tensor_dataset(x_val)
+
+    val_dl <- torch::dataloader(val_ds,
+                                batch_size = batch_size,
+                                shuffle=FALSE)
+  }
+
+
+  num_cont <- length(metadata_for_cat$num_cols)
+  cat_dims <- metadata_for_cat$cat_dims
+
+  # Create wrapper
+
+  fitted <- binning_wrapper |>
+    luz::setup(
+      loss = binning_loss(),
+      optimizer = torch::optim_adam
+    ) |>
+    luz::set_hparams(
+      num_cont = num_cont,
+      cat_dims = cat_dims,
+      encoder_hidden_dim = 256,
+      encoder_num_hidden = 2,
+      n_bins = bins$n_bins,
+      T = bins$T,
+      decoder_num_hidden = 2,
+      decoder_head = "linear",
+      decoder_mask_invalid = TRUE
+    ) |>
+    luz::set_opt_hparams(
+      lr = 0.0001
+    ) |>
+    luz::fit(
+      train_dl,
+      epochs = n_epochs,
+      valid_data = val_dl
+      # TODO: callback es necesario?? opcional??
+    )
+
+
+  # Save trained model AND the recipe required to apply the same preprocessing to the test set
+  encoder_weights <- fitted$model$binning_encoder$state_dict()
+
+  hparams <- list(
+    num_cont = num_cont,
+    cat_dims = cat_dims
+  )
+
+  model_bundle <- list(
+    encoder_state_dict = encoder_weights,
+    encoder_hparams = hparams,
+    metadata_for_cat = metadata_for_cat,
+    recipe = serialize(recipe, NULL),
+    bundle_type = "binning_bundle"
+  )
+
+  return(invisible(model_bundle))
 
 }
 

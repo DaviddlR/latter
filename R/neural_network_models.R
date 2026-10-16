@@ -103,6 +103,9 @@ binning_encoder <- torch::nn_module(
 
     layers[[index_layer]] <- torch::nn_linear(total_in_dim, hidden_dim)
 
+    # Set output dimension
+    self$output_dim <- hidden_dim
+
     # Main encoder module
     self$encoder <- do.call(torch::nn_sequential, layers)
 
@@ -176,8 +179,8 @@ binning_decoder <- torch::nn_module(
     }
     self$main_decoder <- if (length(layers) > 0) do.call(torch::nn_sequential, layers) else torch::nn_identity()
 
-    if (head == "linear") {
-      self$head <- torch::nn_linear(in_dim, self$n_columns * T)
+    if (self$head_type == "linear") {
+      self$head <- torch::nn_linear(in_dim, self$n_columns * T)  # [batch, num_columnas, T clases posibles]
     } else {
       self$head <- torch::nn_linear(in_dim, self$n_columns)
       # same default init as Conv2d(1, T, 1): U(-1, 1) because fan_in = 1
@@ -217,11 +220,46 @@ binning_decoder <- torch::nn_module(
 binning_wrapper <- torch::nn_module(
   name = "binning_wrapper",
 
-  initialize = function() {
+  initialize = function(num_cont, cat_dims, encoder_hidden_dim, encoder_num_hidden, n_bins, T, decoder_num_hidden, decoder_head, decoder_mask_invalid) {
+
+    self$num_cont <- num_cont
+    self$cat_dims <- cat_dims
+    self$encoder_hidden_dim <- encoder_hidden_dim
+    self$encoder_num_hidden <- encoder_num_hidden
+    self$n_bins <- n_bins
+    self$T <- T
+    self$decoder_num_hidden <- decoder_num_hidden
+    self$decoder_head <- decoder_head
+    self$decoder_mask_invalid <- decoder_mask_invalid
+
+
+    # Create encoder
+    self$binning_encoder <- binning_encoder(num_cont = self$num_cont,
+                                            cat_dims = self$cat_dims,
+                                            hidden_dim = self$encoder_hidden_dim,
+                                            num_hidden = self$encoder_num_hidden
+                                            )
+
+
+    decoder_input_dim <- self$binning_encoder$output_dim
+
+    self$binning_decoder <- binning_decoder(in_dim = decoder_input_dim,
+                                            n_bins = self$n_bins,
+                                            T = self$T,
+                                            n_layers = self$decoder_num_hidden,
+                                            head = self$decoder_head,
+                                            mask_invalid = self$decoder_mask_invalid
+                                            )
+
 
   },
 
-  forward = function() {
+  forward = function(x) {
+
+    z <- self$binning_encoder(x)
+    output <- self$binning_decoder(z)
+
+    return (output)
 
   }
 

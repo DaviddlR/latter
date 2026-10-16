@@ -5,6 +5,39 @@
 
 
 
+#' BinXent loss
+#'
+#' Multi-class cross-entropy of every column, averaged over the d columns and
+#' the N samples of the batch.
+#'
+#' @param logits Output of the wrapper, [batch, d, T].
+#' @param target Bin indices, [batch, d], 1-based (output of [apply_bins()]
+#'   converted to a tensor).
+#'
+#' @returns A 'torch::nn_module' representing the Binning loss function.
+#' @noRd
+
+binning_loss <- torch::nn_module(
+  name = "binning_loss",
+
+  initialize = function() {
+
+  },
+
+  forward = function(input, target) {
+    n_classes <- input$size(3)
+    loss <- torch::nnf_cross_entropy(
+      input = logits$reshape(c(-1, n_classes)),
+      target = target$to(dtype = torch::torch_long())$reshape(-1)
+    )
+
+    return (loss)
+  }
+)
+
+
+
+
 
 #' Loss function for the VIME algorithm
 #'

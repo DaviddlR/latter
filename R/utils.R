@@ -299,7 +299,7 @@ get_bins = function(dataset_train, metadata_for_cat = NULL, T = 10, handle_categ
     features[[j]] <- bin_categorical(codes, cat_dims[i], T)
   }
 
-  print(features)
+  #print(features)
 
   return(structure(
     list(
@@ -394,8 +394,8 @@ check_codes <- function(x, dims, j) {
   codes <- as.integer(round(x))
 
   if (any(codes < 0L | codes > dims - 1L)) {
-    print(codes)
-    print(unique(codes))
+    #print(codes)
+    #print(unique(codes))
     stop("Column ", j, ": categorical codes must be in 0..", dims - 1,
          " (found values outside that range).")
   }
@@ -432,7 +432,7 @@ apply_bins <- function(x, bins) {
     }
   }
 
-  return (output)
+  return (output)  # [batch, num_columnas] - Para cada columna del batch, su índice o bin correcto
 }
 
 
