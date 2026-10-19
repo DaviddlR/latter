@@ -38,7 +38,7 @@ binning_fit = function(
   x_val_binned <- apply_bins(x_val, bins)  # TODO: test que verifique que esto funciona si val es NULL
 
   # Create training dataset and dataloader
-  train_ds <- create_tensor_dataset(x_train)
+  train_ds <- create_tensor_dataset_for_binning(x_train, x_train_binned)
 
   train_dl <- torch::dataloader(train_ds,
                                 batch_size = batch_size,
@@ -48,7 +48,7 @@ binning_fit = function(
   val_dl <- NULL
 
   if(create_validation) {
-    val_ds <- create_tensor_dataset(x_val)
+    val_ds <- create_tensor_dataset_for_binning(x_val, x_val_binned)
 
     val_dl <- torch::dataloader(val_ds,
                                 batch_size = batch_size,

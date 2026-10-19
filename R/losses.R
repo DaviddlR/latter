@@ -25,9 +25,16 @@ binning_loss <- torch::nn_module(
   },
 
   forward = function(input, target) {
+
+    # print("input")
+    # print(input$shape)
+    # print("target")
+    # print(target$shape)
+    # print("end target")
+
     n_classes <- input$size(3)
     loss <- torch::nnf_cross_entropy(
-      input = logits$reshape(c(-1, n_classes)),
+      input = input$reshape(c(-1, n_classes)),
       target = target$to(dtype = torch::torch_long())$reshape(-1)
     )
 

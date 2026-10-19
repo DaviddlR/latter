@@ -28,6 +28,29 @@ create_tensor_dataset <- torch::dataset(
 
 
 
+create_tensor_dataset_for_binning <- torch::dataset(
+  name = "create_tensor_dataset",
+
+  initialize = function(data, target) {
+    self$data   <- as.matrix(data)
+    self$target <- as.matrix(target)
+    stopifnot(nrow(self$data) == nrow(self$target))
+  },
+
+  .getitem = function(i) {
+    list(
+      x = torch::torch_tensor(self$data[i, ],   dtype = torch::torch_float32()),
+      y = torch::torch_tensor(self$target[i, ], dtype = torch::torch_long())   # bins 1-based
+    )
+  },
+
+  .length = function() {
+    nrow(self$data)
+  }
+)
+
+
+
 
 
 
