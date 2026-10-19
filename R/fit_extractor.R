@@ -1,8 +1,13 @@
+
+
+# TODO: separar los argumentos por secciones según sean de un método u otro
+
+
 #' Trains an encoder using different self-supervised objectives. It prepares the data using a recipe, applies random feature corruption and fits the model.
 #'
 #' @param dataframe_train A \code{data.frame} used to train de model.
-#' @param handle_categorical A \code{character} used during \code{"Binning"} training that indicates how to manage the categorical features. Available options are \code{["None"]}
 #' @param pretraining_type A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it follows SCARF pretraining. Available options are \code{["SCARF", "VIME", "Binning"]}.
+#' @param handle_categorical A \code{character} used during \code{"Binning"} training that indicates how to manage the categorical features. Available options are \code{["top_frequent"]}
 #' @param exclude_columns A \code{character} of columns that the model should ignore during pretraining (i.e target or ID columns). Default is \code{NULL}.
 #' @param create_validation \code{Boolean}. If \code{TRUE}, splits the training data to create a validation set. Default is \code{FALSE}.
 #' @param validation_proportion \code{Numeric}. Proportion of data (0 to 1) allocated for validation if \code{create_validation = TRUE}. Default is \code{0.1}.
@@ -50,8 +55,8 @@
 #'
 fit_extractor <- function (
     dataframe_train,
-    handle_categorical = "None",
     pretraining_type = "SCARF",
+    handle_categorical = "top_frequent",
     exclude_columns = NULL,
     create_validation = FALSE,
     validation_proportion = 0.1,
@@ -91,7 +96,7 @@ fit_extractor <- function (
     # Bimming as a pretext task pretraining
     trained_bundle <- binning_fit(
       dataframe_train = dataframe_train,
-      handle_categorical = "None",
+      handle_categorical = "top_frequent",
       exclude_columns = exclude_columns,
       create_validation = create_validation,
       validation_proportion = validation_proportion,

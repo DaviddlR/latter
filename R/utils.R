@@ -78,12 +78,46 @@ load_bundle = function(bundle_path) {
     # Load info for categorical data
     info_for_categorical <- model_bundle$metadata_for_cat
 
-    return(list(
+    return (list(
       encoder = fitted_encoder,
       recipe = trained_recipe,
       metadata_for_cat = info_for_categorical
     ))
 
+
+
+  # BINNING bundle
+  } else if (is.list(model_bundle) && identical(model_bundle$bundle_type, "binning_bundle")) {
+
+    print("Extracting a Binning bundle")
+
+    # Load encoder hyperparameters
+    hparams <- model_bundle$encoder_hparams
+
+    print(hparams)
+
+    # Create a new encoder
+    fitted_encoder <- binning_encoder(
+      num_cont = hparams$num_cont,
+      cat_dims = hparams$cat_dims,
+      hidden_dim = hparams$hidden_dim,
+      num_hidden = hparams$num_hidden
+    )
+
+    # Load trained weights
+    fitted_encoder$load_state_dict(model_bundle$encoder_state_dict)
+
+    # Load recipe
+    trained_recipe <- unserialize(model_bundle$recipe)
+
+    # Load info for categorical data
+    info_for_categorical <- model_bundle$metadata_for_cat
+
+    return (list(
+      encoder = fitted_encoder,
+      recipe = trained_recipe,
+      metadata_for_cat = info_for_categorical
+    ))
 
   } else {
     stop("The input is not a valid bundle. Please, train a model using fit_extractor() and set the pretrained_model_path to the path in which the trained model is stored")

@@ -61,6 +61,11 @@ binning_fit = function(
 
   # Create wrapper
 
+  # Encoder hparams (we will need it to load the bundle)
+  # TODO: hacer que esto sean parámetros que puede meter el usuario (?)
+  encoder_hidden_dim <- 256
+  encoder_num_hidden <- 2
+
   fitted <- binning_wrapper |>
     luz::setup(
       loss = binning_loss(),
@@ -69,8 +74,8 @@ binning_fit = function(
     luz::set_hparams(
       num_cont = num_cont,
       cat_dims = cat_dims,
-      encoder_hidden_dim = 256,
-      encoder_num_hidden = 2,
+      encoder_hidden_dim = encoder_hidden_dim,
+      encoder_num_hidden = encoder_num_hidden,
       n_bins = bins$n_bins,
       T = bins$T,
       decoder_num_hidden = 2,
@@ -93,7 +98,9 @@ binning_fit = function(
 
   hparams <- list(
     num_cont = num_cont,
-    cat_dims = cat_dims
+    cat_dims = cat_dims,
+    hidden_dim = encoder_hidden_dim,
+    num_hidden = encoder_num_hidden
   )
 
   model_bundle <- list(
