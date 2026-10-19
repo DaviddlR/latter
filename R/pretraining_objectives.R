@@ -5,6 +5,7 @@
 binning_fit = function(
     dataframe_train,
     handle_categorical = "top_frequent",   # None means do it exactly how it is done in the original paper
+    corruption_during_binning = FALSE,
     exclude_columns = NULL,
     create_validation = FALSE,
     validation_proportion = 0.1,
@@ -88,7 +89,8 @@ binning_fit = function(
     luz::fit(
       train_dl,
       epochs = n_epochs,
-      valid_data = val_dl
+      valid_data = val_dl,
+      callbacks = list(custom_binning_step_callback(want_corruption = corruption_during_binning, corruption_rate = 0.6)),
       # TODO: callback es necesario?? opcional??
     )
 
@@ -114,6 +116,95 @@ binning_fit = function(
   return(invisible(model_bundle))
 
 }
+
+
+# Just if the user want to add corruption during the training phase
+custom_binning_step_callback <- luz::luz_callback(
+
+  name = "VIME_custom_steps",
+
+  initialize = function(want_corruption, corruption_rate = 0.6) {
+    self$want_corruption <- want_corruption
+    self$corruption_rate <- corruption_rate
+  },
+
+  # Train. It receives a batch from the dataloader / tensor_dataset
+  on_train_batch_begin = function() {
+
+
+    if (self$want_corruption){
+      batch <- ctx$batch
+      #target <- batch$y  # Label. Not used during pre-training
+
+      x <- batch$x  # Data
+
+      batch_size <- x$size(1)
+      num_features <- x$size(2)
+
+      mask <- torch::torch_rand_like(x) < self$corruption_rate
+
+      random_indices <- torch::torch_randint(
+        low = 1,
+        high = batch_size + 1,  # 1 and +1 because R indices start at 1
+        size = c(batch_size, num_features),
+        device = x$device,
+        dtype = torch::torch_long()
+      )
+
+      x_random <- torch::torch_gather(x, dim=1, index = random_indices)
+
+      x_corrupted <- torch::torch_where(mask, x_random, x)
+
+      ctx$input <- x_corrupted  # Input for the forward method
+      # We do not modify ctx$target. It comes from training dataset binned.
+    }
+
+  },
+
+
+  # Validation
+  on_valid_batch_begin = function() {
+    #print(ctx$batch[[1]]$device)
+
+    if (self$want_corruption){
+      batch <- ctx$batch
+      #target <- batch$y  # Label. Not used during pre-training
+
+      x <- batch$x  # Data
+
+      batch_size <- x$size(1)
+      num_features <- x$size(2)
+
+      mask <- torch::torch_rand_like(x) < self$corruption_rate
+
+      random_indices <- torch::torch_randint(
+        low = 1,
+        high = batch_size + 1,  # 1 and +1 because R indices start at 1
+        size = c(batch_size, num_features),
+        device = x$device,
+        dtype = torch::torch_long()
+      )
+
+      x_random <- torch::torch_gather(x, dim=1, index = random_indices)
+
+      x_corrupted <- torch::torch_where(mask, x_random, x)
+
+      ctx$input <- x_corrupted  # Input for the forward method
+      # We do not modify ctx$target. It comes from training dataset binned.
+    }
+
+  },
+
+
+)
+
+
+
+
+
+
+
+
 
 
 

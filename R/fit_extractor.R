@@ -8,6 +8,7 @@
 #' @param dataframe_train A \code{data.frame} used to train de model.
 #' @param pretraining_type A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it follows SCARF pretraining. Available options are \code{["SCARF", "VIME", "Binning"]}.
 #' @param handle_categorical A \code{character} used during \code{"Binning"} training that indicates how to manage the categorical features. Available options are \code{["top_frequent"]}
+#' @param corruption_during_binning \code{Boolean}. If \code{TRUE}, it corrupts the training dataset by replacing features of each batch with features of other random instances of the same batch.
 #' @param exclude_columns A \code{character} of columns that the model should ignore during pretraining (i.e target or ID columns). Default is \code{NULL}.
 #' @param create_validation \code{Boolean}. If \code{TRUE}, splits the training data to create a validation set. Default is \code{FALSE}.
 #' @param validation_proportion \code{Numeric}. Proportion of data (0 to 1) allocated for validation if \code{create_validation = TRUE}. Default is \code{0.1}.
@@ -57,6 +58,7 @@ fit_extractor <- function (
     dataframe_train,
     pretraining_type = "SCARF",
     handle_categorical = "top_frequent",
+    corruption_during_binning = "FALSE",
     exclude_columns = NULL,
     create_validation = FALSE,
     validation_proportion = 0.1,
@@ -96,7 +98,8 @@ fit_extractor <- function (
     # Bimming as a pretext task pretraining
     trained_bundle <- binning_fit(
       dataframe_train = dataframe_train,
-      handle_categorical = "top_frequent",
+      handle_categorical = handle_categorical,
+      corruption_during_binning = corruption_during_binning,
       exclude_columns = exclude_columns,
       create_validation = create_validation,
       validation_proportion = validation_proportion,

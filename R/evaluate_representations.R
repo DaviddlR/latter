@@ -58,7 +58,8 @@
 #' }
 train_classifier_on_extracted_features = function(df_train, pretrained_model_path, label_column, num_classes, exclude_columns = NULL, parsnip_classification_model = NULL, classification_model_type = NULL, n_epochs = 50, dropout = 0.2, doitsmall = FALSE, save_path = "classifier") {
 
-  # TODO: borrar pretraining_type. No sirve para nada
+  # TODO: validar label_column, aquí o en extract_features, pero validar para que sea una columna real.
+
 
   if(doitsmall) {
 
