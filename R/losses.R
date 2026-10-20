@@ -16,7 +16,6 @@
 #'
 #' @returns A 'torch::nn_module' representing the Binning loss function.
 #' @noRd
-
 binning_loss <- torch::nn_module(
   name = "binning_loss",
 

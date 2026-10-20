@@ -2,11 +2,13 @@
 % Please edit documentation in R/fit_extractor.R
 \name{fit_extractor}
 \alias{fit_extractor}
-\title{Trains a SCARF encoder using a contrastive loss objective. It prepares the data using a recipe, applies random feature corruption and fits the model.}
+\title{Trains an encoder using different self-supervised objectives. It prepares the data using a recipe, applies random feature corruption and fits the model.}
 \usage{
 fit_extractor(
   dataframe_train,
   pretraining_type = "SCARF",
+  handle_categorical = "top_frequent",
+  corruption_during_binning = "FALSE",
   exclude_columns = NULL,
   create_validation = FALSE,
   validation_proportion = 0.1,
@@ -19,7 +21,11 @@ fit_extractor(
 \arguments{
 \item{dataframe_train}{A \code{data.frame} used to train de model.}
 
-\item{pretraining_type}{A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it follows SCARF pretraining. Available options are \code{["SCARF", "VIME"]}.}
+\item{pretraining_type}{A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it follows SCARF pretraining. Available options are \code{["SCARF", "VIME", "Binning"]}.}
+
+\item{handle_categorical}{A \code{character} used during \code{"Binning"} training that indicates how to manage the categorical features. Available options are \code{["top_frequent"]}}
+
+\item{corruption_during_binning}{\code{Boolean}. If \code{TRUE}, it corrupts the training dataset by replacing features of each batch with features of other random instances of the same batch.}
 
 \item{exclude_columns}{A \code{character} of columns that the model should ignore during pretraining (i.e target or ID columns). Default is \code{NULL}.}
 
@@ -39,7 +45,7 @@ fit_extractor(
 Invisible \code{NULL}. The function saves a serialized list containing the encoder state dict, hyperparameters, and the preprocessing recipe to \code{save_path}.
 }
 \description{
-Trains a SCARF encoder using a contrastive loss objective. It prepares the data using a recipe, applies random feature corruption and fits the model.
+Trains an encoder using different self-supervised objectives. It prepares the data using a recipe, applies random feature corruption and fits the model.
 }
 \examples{
 \donttest{

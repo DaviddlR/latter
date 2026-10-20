@@ -282,16 +282,37 @@ encode_categorical_data = function(data, metadata = NULL) {
 }
 
 
-# TODO: dependiendo de cómo gestionar las categóricas, llamará a una u otra función. Ahora mismo lo hace como "none", siguiendo el paper.
-#' Get bins to encode numerical features
+
+#' Fit the bins on the training set.
 #'
-#' @param dataset_train Training partition of the dataset
-#' @param T Number of target bins. Default: 10
+#' Computes, for every column, how raw values are mapped to bin indices. Bin indices are nominal classes, following BinXent. No order is implied.
 #'
-#' @returns A named list where each element contains the vector of bin cuts for a numerical feature
-get_bins = function(dataset_train, metadata_for_cat = NULL, T = 10, handle_categorical = "None") {
+#' @section Numerical columns (paper, Section 4):
+#' The bin boundaries are the quantiles t/T, t = 1..T-1, of the training
+#' column. If the column has at most T distinct values, each distinct value is
+#' its own bin.
+#'
+#' @section Categorical columns (our choice; the paper does not cover this):
+#' K = number of levels declared in `cat_dims`.
+#'  - K <= T: each level is its own bin (bin index = level code).
+#'  - K  > T: the T-1 most frequent levels in the training set get one bin each and all the other levels, including levels unseen in training, share the bin "Others" (the last bin).
+#'
+#' @section Deviations from the paper:
+#' 1. Empty bins produced by ties are removed, so bins are all non-empty in training. Values falling in a removed bin go to the nearest non-empty one.
+#' 2. The kind of column (numerical or categorical) comes from 'num_cont' and 'cat_dims', not from a threshold on the number of distinct values.
+#' 3. Categorical columns with more than T levels are grouped by frequency. The T most frequent colums have their own bins. Other columns falls under a common 'others' bin.
+#'
+#'
+#' @param dataset_train. Training partition of the dataset.
+#' @param metadata_for_cat. It contains information about categorical columns. Default is \code{NULL}. User do not have to provide it.
+#' @param T. Maximum number of bins per column. of target bins. Default: \code{10}.
+#' @param handle_categorical. Only \code{'top_frequent'} is implemented for now.
+#'
+#' @returns An object of class "metadata_for_binning" that contains the information needed to apply bins on a specific dataset.
+get_bins = function(dataset_train, metadata_for_cat = NULL, T = 10, handle_categorical = "top_frequent") {
 
   # TODO: Check que pasa cuando no hay variables categóricas. Da error o no????
+  # TODO: Check que metadata_for_cat no es null.
   num_cont <- length(metadata_for_cat$num_cols)
   cat_dims <- metadata_for_cat$cat_dims
 
@@ -439,6 +460,19 @@ check_codes <- function(x, dims, j) {
 }
 
 
+
+
+
+
+
+#' Apply fitted bins to a dataset (train, validation, etc)
+#'
+#'
+#'
+#' @param x Data with the same columns as the training data. NULL returns NULL, useful when there is no validation set.
+#' @param bins Output of latter::get_bins().
+#'
+#' @returns An integer matrix with the bin index of every value.
 apply_bins <- function(x, bins) {
   if (is.null(x)) return(NULL)  # For instance, if there is no validation set
 
@@ -472,78 +506,6 @@ apply_bins <- function(x, bins) {
 
 
 
-
-
-
-# TODO: dependiendo de cómo gestionar las categóricas, llamará a una u otra función. Ahora mismo lo hace como "none", siguiendo el paper.
-#' Get bins to encode numerical features
-#'
-#' @param dataset_train Training partition of the dataset
-#' @param T Number of target bins. Default: 10
-#'
-#' @returns A named list where each element contains the vector of bin cuts for a numerical feature
-.remove_get_bins <- function(dataset_train, T = 10, handle_categorical = "None") {
-
-  if (!identical(handle_categorical, "top_frequent")) {
-    stop("Only handle_categorical = 'top_frequent' is implemented")
-  }
-
-  if (!is.numeric(T) || T < 2) {
-    stop("T must be a number >= 2")
-  }
-
-  dataset_train <- as.data.frame(dataset_train)
-
-  # At this point, every feature is numerical. Categorical via encode
-  cols <- names(dataset_train)
-
-
-  bins <- lapply(cols, function(col) {
-    x <- na.omit(dataset_train[[col]])  # Remove possible NaN
-    n_unique <- length(unique(x))
-
-    if (n_unique < T) {
-      cuts <- sort(unique(x))
-    } else {
-      cuts <- quantile(x, probs = seq(0, 1, length.out = T + 1), type = 7, names = FALSE)
-      cuts <- unique(cuts)
-    }
-
-    return (cuts)
-  })
-
-  names(bins) <- cols
-
-  print(bins)
-
-  return (bins)
-
-}
-
-
-.remove_apply_bins = function(dataset, cuts) {
-  binned_dataset <- as.data.frame(dataset)
-
-  for (col in names(cuts)) {
-    x <- binned_dataset[[col]]
-    cut_vec <- cuts[[col]]
-
-    # Just one bin
-    if (length(cut_vec) <= 1) {
-      binned_dataset[[col]] <- 1
-    # Multiple bins
-    } else {
-      binned_dataset[[col]] <- findInterval(
-        x,
-        vec = cut_vec,
-        rightmost.closed = TRUE,
-        all.inside = TRUE
-      )
-    }
-  }
-
-  return(binned_dataset)
-}
 
 
 

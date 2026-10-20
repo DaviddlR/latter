@@ -41,8 +41,22 @@ classifier_network <- torch::nn_module(
 
 
 
+
+#' Binning encoder (MLP)
+#'
+#' Numerical columns pass as they are. Categorical columns go through one embedding layer each.
+#' Numerical columns first, categorical last.
+#'
+#' @param num_cont Number of numerical features.
+#' @param cat_dims Number of levels per categorical column.
+#' @param hidden_dim Width of the MLP (size of the latent representation)
+#' @param num_hidden Number of Linear + ReLU blocks.
+#'
+#' @returns A 'torch::nn_module' representing the encoder
+#' @noRd
 binning_encoder <- torch::nn_module(
   name = "binning_basic_encoder",
+
 
   initialize = function(num_cont, cat_dims, hidden_dim = 256, num_hidden = 4) {
 
@@ -153,18 +167,17 @@ binning_encoder <- torch::nn_module(
 #' @param in_dim Size of the representation z.
 #' @param n_bins Integer vector with the number of bins of each column.
 #' @param T Maximum number of bins (output classes per column).
-#' @param n_layers Same value as in the encoder.
+#' @param n_layers Number of Linear + ReLU blocks.
 #' @param head "linear" or "conv1x1".
 #' @param mask_invalid If TRUE, classes k > n_bins[j] are masked in column j.
 #'
-#' @returns
-#'
+#' @returns A 'torch::nn_module' representing the decoder. Forward returns predictions [batch, number_of_dimensions, T]
 #' @noRd
 binning_decoder <- torch::nn_module(
   name = "binning_decoder",
 
 
-  initialize = function(in_dim, n_bins, T, n_layers = 2, head = "linear", mask_invalid = TRUE) {
+  initialize = function(in_dim, n_bins, T, n_layers = 4, head = "linear", mask_invalid = TRUE) {
 
     self$n_columns <- length(n_bins)
     self$n_classes <- T
@@ -217,10 +230,26 @@ binning_decoder <- torch::nn_module(
 )
 
 
+
+
+#' Binning wrapper: encoder + decoder
+#'
+#' @param num_cont Number of numerical features.
+#' @param cat_dims Number of levels per categorical column.
+#' @param n_bins Integer vector with the number of bins of each column.
+#' @param T Maximum number of bins (output classes per column).
+#' @param encoder_hidden_dim Width of the encoder MLP. Default is \code{256}.
+#' @param encoder_num_hidden Number of layers of the encoder MLP. Default is \code{4}.
+#' @param decoder_num_hidden Number of Linear + ReLU blocks. Default is \code{4}.
+#' @param decoder_head "linear" or "conv1x1".
+#' @param decoder_mask_invalid Decide if mask classes outside the number of bins for each columns
+#'
+#' @returns A 'torch::nn_module' representing the whole Binning method.
+#' @noRd
 binning_wrapper <- torch::nn_module(
   name = "binning_wrapper",
 
-  initialize = function(num_cont, cat_dims, encoder_hidden_dim, encoder_num_hidden, n_bins, T, decoder_num_hidden, decoder_head, decoder_mask_invalid) {
+  initialize = function(num_cont, cat_dims, n_bins, T, encoder_hidden_dim = 256, encoder_num_hidden = 4, decoder_num_hidden, decoder_head, decoder_mask_invalid) {
 
     self$num_cont <- num_cont
     self$cat_dims <- cat_dims
@@ -274,6 +303,7 @@ binning_wrapper <- torch::nn_module(
 #' @param cat_dims Number of dimensions per categorical column.
 #'
 #' @returns A 'torch::nn_module' representing the encoder.
+#' @noRd
 vime_encoder <- torch::nn_module(
   name = "vime_basic_encoder",
 

@@ -30,6 +30,7 @@ binning_fit = function(
 
   #print(x_train)
 
+  # TODO: T como hiperparámetro modificable
   bins <- get_bins(x_train, metadata_for_cat = metadata_for_cat, T = 10, handle_categorical = handle_categorical)
   x_train_binned <- apply_bins(x_train, bins)
 
@@ -90,8 +91,8 @@ binning_fit = function(
       train_dl,
       epochs = n_epochs,
       valid_data = val_dl,
-      callbacks = list(custom_binning_step_callback(want_corruption = corruption_during_binning, corruption_rate = 0.6)),
-      # TODO: callback es necesario?? opcional??
+      callbacks = list(custom_binning_step_callback(want_corruption = corruption_during_binning, corruption_rate = 0.2)),
+      # TODO: corruption rate como parametro modificable
     )
 
 
