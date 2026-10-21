@@ -10,6 +10,8 @@ step_extract_latent(
   role = "predictor",
   trained = FALSE,
   pretraining_type = "SCARF",
+  handle_categorical = "top_frequent",
+  corruption_during_binning = "TRUE",
   create_validation = FALSE,
   validation_proportion = 0.1,
   batch_size = 256,
@@ -35,7 +37,11 @@ variables. Defaults to \code{"predictor"}.}
 been estimated.}
 
 \item{pretraining_type}{A character specifying the SSL method to use.
-Default is \code{'SCARF'}. Available options are \code{["SCARF", "VIME"]}}
+Default is \code{'SCARF'}. Available options are \code{["SCARF", "VIME", "Binning"]}}
+
+\item{handle_categorical}{A \code{character} used during \code{"Binning"} training. It indicates how to manage the categorical features. Available options are \code{["top_frequent"]}}
+
+\item{corruption_during_binning}{\code{Boolean} used during \code{"Binning"} training. If \code{TRUE}, it corrupts the training dataset by replacing features of each batch with features of other random instances of the same batch.}
 
 \item{create_validation}{A \code{logical}. If \code{TRUE}, splits the
 training data to create a validation set. Default is \code{FALSE}.}

@@ -13,6 +13,7 @@
 #'
 #' @returns A 'torch::nn_module' representing the classification head.
 classifier_network <- torch::nn_module(
+
   name = "Small MLP",
 
   # Init

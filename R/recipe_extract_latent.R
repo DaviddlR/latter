@@ -28,7 +28,9 @@
 #' @param trained A logical to indicate if the quantities for preprocessing have
 #'   been estimated.
 #' @param pretraining_type A character specifying the SSL method to use.
-#' Default is \code{'SCARF'}. Available options are \code{["SCARF", "VIME"]}
+#' Default is \code{'SCARF'}. Available options are \code{["SCARF", "VIME", "Binning"]}
+#' @param handle_categorical A \code{character} used during \code{"Binning"} training. It indicates how to manage the categorical features. Available options are \code{["top_frequent"]}
+#' @param corruption_during_binning \code{Boolean} used during \code{"Binning"} training. If \code{TRUE}, it corrupts the training dataset by replacing features of each batch with features of other random instances of the same batch.
 #' @param create_validation A \code{logical}. If \code{TRUE}, splits the
 #' training data to create a validation set. Default is \code{FALSE}.
 #' @param validation_proportion \code{Numeric}. Proportion of data (0 to 1)
@@ -60,6 +62,8 @@ step_extract_latent <- function(
   role = "predictor",
   trained = FALSE,
   pretraining_type = "SCARF",  # De aquí hacia abajo, los parámetros que necesito yo
+  handle_categorical = "top_frequent",
+  corruption_during_binning = "TRUE",
   # exclude_columns = NULL,
   create_validation = FALSE,
   validation_proportion = 0.1,
@@ -83,6 +87,8 @@ step_extract_latent <- function(
         role = role,
         trained = trained,
         pretraining_type = pretraining_type,
+        handle_categorical = handle_categorical,
+        corruption_during_binning = corruption_during_binning,
         create_validation = create_validation,
         validation_proportion = validation_proportion,
         batch_size = batch_size,
@@ -106,6 +112,8 @@ step_extract_latent_new <- function(subclass,
                                     role,
                                     trained,
                                     pretraining_type,
+                                    handle_categorical,
+                                    corruption_during_binning,
                                     create_validation,
                                     validation_proportion,
                                     batch_size,
@@ -121,6 +129,8 @@ step_extract_latent_new <- function(subclass,
     role = role,
     trained = trained,
     pretraining_type = pretraining_type,
+    handle_categorical = handle_categorical,
+    corruption_during_binning = corruption_during_binning,
     create_validation = create_validation,
     validation_proportion = validation_proportion,
     batch_size = batch_size,
@@ -154,6 +164,8 @@ prep.step_extract_latent <- function(x, training, info = NULL, ...) {
   pretrained_model <- fit_extractor(
     dataframe_train = training_data,
     pretraining_type = x$pretraining_type,
+    handle_categorical = x$handle_categorical,
+    corruption_during_binning = x$corruption_during_binning,
     exclude_columns = NULL,  # Force NULL. The user filter the columns with recipes
     create_validation = x$create_validation,
     validation_proportion = x$validation_proportion,
@@ -171,6 +183,8 @@ prep.step_extract_latent <- function(x, training, info = NULL, ...) {
     role = x$role,
     trained = TRUE,  # As prep is completed, we set trained to TRUE
     pretraining_type = x$pretraining_type,
+    handle_categorical = x$handle_categorical,
+    corruption_during_binning = x$corruption_during_training,
     create_validation = x$create_validation,
     validation_proportion = x$validation_proportion,
     batch_size = x$batch_size,

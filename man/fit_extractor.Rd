@@ -23,9 +23,9 @@ fit_extractor(
 
 \item{pretraining_type}{A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it follows SCARF pretraining. Available options are \code{["SCARF", "VIME", "Binning"]}.}
 
-\item{handle_categorical}{A \code{character} used during \code{"Binning"} training that indicates how to manage the categorical features. Available options are \code{["top_frequent"]}}
+\item{handle_categorical}{A \code{character} used during \code{"Binning"} training. It indicates how to manage the categorical features. Available options are \code{["top_frequent"]}}
 
-\item{corruption_during_binning}{\code{Boolean}. If \code{TRUE}, it corrupts the training dataset by replacing features of each batch with features of other random instances of the same batch.}
+\item{corruption_during_binning}{\code{Boolean} used during \code{"Binning"} training. If \code{TRUE}, it corrupts the training dataset by replacing features of each batch with features of other random instances of the same batch.}
 
 \item{exclude_columns}{A \code{character} of columns that the model should ignore during pretraining (i.e target or ID columns). Default is \code{NULL}.}
 

@@ -4,7 +4,7 @@ create_dummy_data <- function() {
     num1 = rnorm(20),
     num2 = runif(20),
     num3 = rnorm(20, mean = 5),
-    cat1 = factor(sample(c("a", "b", "c", "d"), 20, replace = TRUE)),
+    cat1 = factor(sample(c("a", "b", "c", "d", "e"), 20, replace = TRUE)),
     target = factor(sample(c("a", "b"), 20, replace = TRUE))
   )
 }
@@ -102,6 +102,53 @@ test_that("step_extract_latent using VIME integrates with recipes pipeline, prep
 
 })
 
+
+
+test_that("step_extract_latent using Binning integrates with recipes pipeline, prep and bake", {
+  skip_if_not_installed("torch")
+  skip_if_not_installed("recipes")
+
+  df_train <- create_dummy_data()
+  df_test <- create_dummy_data()
+
+  # Create recipe
+  recipe <- recipes::recipe(target ~ ., data = df_train) |>
+    recipes::update_role(id, new_role = "id") |>
+    step_extract_latent(
+      recipes::all_predictors(),
+      pretraining_type = "Binning",
+      handle_categorical = "top_frequent",
+      corruption_during_binning = TRUE,
+      epochs = 1,
+      batch_size = 8,
+      batch_size_inference = 8
+    )
+
+  expect_false(recipe$steps[[1]]$trained)  # Check not trained
+
+  # Prep
+  prepped_recipe <- recipes::prep(
+    recipe,
+    training = df_train
+  )
+  trained_step <- prepped_recipe$steps[[1]]
+
+
+  expect_true(trained_step$trained)  # Check trained
+  expect_equal(unname(trained_step$columns), c("num1", "num2", "num3", "cat1"))  # Check processed columns
+  expect_equal(trained_step$pretrained_model$bundle_type, "binning_bundle")  # Check pretrained model is stored
+
+  # Bake
+  baked_df <- recipes::bake(prepped_recipe, new_data = df_test)
+
+  expect_s3_class(baked_df, "tbl_df")
+  expect_equal(nrow(baked_df), nrow(df_test))
+
+  expect_false(any(c("num1", "num2", "num3") %in% colnames(baked_df)))
+  expect_true("id" %in% colnames(baked_df))
+  expect_true("target" %in% colnames(baked_df))
+  expect_true(any(grepl("^extracted_dim_", colnames(baked_df))))
+})
 
 
 
