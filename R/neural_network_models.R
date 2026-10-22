@@ -42,6 +42,51 @@ classifier_network <- torch::nn_module(
 
 
 
+subtab_encoder <- torch::nn_module(
+  name = "subtab_encoder",
+
+  initialize = function() {
+
+  },
+
+  forward = function() {
+
+  }
+)
+
+# We use this for contrastive and distance losses
+subtab_projection_head <- torch::nn_module(
+  name = "subtab_projection_head",
+
+  initialize = function() {
+
+  },
+
+  forward = function() {
+
+  }
+
+)
+
+
+subtab_wrapper <- torch::nn_module(
+  name = "subtab_wrapper",
+
+  initialize = function() {
+
+  },
+
+  forward = function() {
+
+  }
+
+
+)
+
+
+
+
+
 
 #' Binning encoder (MLP)
 #'
