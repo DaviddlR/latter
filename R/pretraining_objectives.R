@@ -2,6 +2,19 @@
 
 
 ############ BINNING PRETRAINING ############
+#' Train an encoder following the 'Binning as a pretext task' objective
+#'
+#' @param dataframe_train A \code{data.frame} used to train de model.
+#' @param handle_categorical A \code{character}. It indicates how to manage the categorical features. Available options are \code{["top_frequent"]}
+#' @param corruption_during_binning \code{Boolean}. If \code{TRUE}, it corrupts the training dataset by replacing features of each batch with features of other random instances of the same batch.
+#' @param exclude_columns A \code{character} of columns that the model should ignore during pretraining (i.e target or ID columns). Default is \code{NULL}.
+#' @param create_validation \code{Boolean}. If \code{TRUE}, splits the training data to create a validation set. Default is \code{FALSE}.
+#' @param validation_proportion \code{Numeric}. Proportion of data (0 to 1) allocated for validation if \code{create_validation = TRUE}. Default is \code{0.1}.
+#' @param batch_size \code{Integer}. Number of samples per batch during training. Default is \code{256}.
+#' @param n_epochs \code{Integer}. Number of training epochs. Default is \code{150}.
+#' @param preprocess \code{Boolean}. Set if the data need preprocessing steps using 'recipes', such as 'step_normalize' or 'step_dummy'. Default is \code{TRUE}, meaning that this process is automatically done.
+#'
+#' @returns An invisible model_bundle containing the trained encoder weights and hyperparameters, in which bundle_type = "binning_bundle".
 binning_fit = function(
     dataframe_train,
     handle_categorical = "top_frequent",   # None means do it exactly how it is done in the original paper
@@ -122,7 +135,7 @@ binning_fit = function(
 # Just if the user want to add corruption during the training phase
 custom_binning_step_callback <- luz::luz_callback(
 
-  name = "VIME_custom_steps",
+  name = "Binning_custom_steps",
 
   initialize = function(want_corruption, corruption_rate = 0.6) {
     self$want_corruption <- want_corruption
@@ -142,10 +155,6 @@ custom_binning_step_callback <- luz::luz_callback(
       corrupted_batch <- corrupt_batch(x, self$corruption_rate)  # utils.R
 
       x_corrupted <- corrupted_batch$x_corrupted
-
-      if(is.null(x_corrupted)){
-        print("ERRRRRROOOOOOORRRRRR en corrupción")
-      }
 
       ctx$input <- x_corrupted  # Input for the forward method
       # We do not modify ctx$target. It comes from training dataset binned.
@@ -199,6 +208,17 @@ custom_binning_step_callback <- luz::luz_callback(
 
 
 ############ VIME PRETRAINING ############
+#' Train an encoder following the 'VIME' objective
+#'
+#' @param dataframe_train A \code{data.frame} used to train de model.
+#' @param exclude_columns A \code{character} of columns that the model should ignore during pretraining (i.e target or ID columns). Default is \code{NULL}.
+#' @param create_validation \code{Boolean}. If \code{TRUE}, splits the training data to create a validation set. Default is \code{FALSE}.
+#' @param validation_proportion \code{Numeric}. Proportion of data (0 to 1) allocated for validation if \code{create_validation = TRUE}. Default is \code{0.1}.
+#' @param batch_size \code{Integer}. Number of samples per batch during training. Default is \code{256}.
+#' @param n_epochs \code{Integer}. Number of training epochs. Default is \code{150}.
+#' @param preprocess \code{Boolean}. Set if the data need preprocessing steps using 'recipes', such as 'step_normalize' or 'step_dummy'. Default is \code{TRUE}, meaning that this process is automatically done.
+#'
+#' @returns An invisible model_bundle containing the trained encoder weights and hyperparameters, in which bundle_type = "vime_bundle".
 vime_fit = function(
     dataframe_train,
     exclude_columns = NULL,
@@ -368,8 +388,17 @@ custom_vime_step_callback <- luz::luz_callback(
 
 
 ############ SCARF PRETRAINING ############
-
-# Train a neural network with the SCARF pretraining objective
+#' Train an encoder following the 'SCARF' objective
+#'
+#' @param dataframe_train A \code{data.frame} used to train de model.
+#' @param exclude_columns A \code{character} of columns that the model should ignore during pretraining (i.e target or ID columns). Default is \code{NULL}.
+#' @param create_validation \code{Boolean}. If \code{TRUE}, splits the training data to create a validation set. Default is \code{FALSE}.
+#' @param validation_proportion \code{Numeric}. Proportion of data (0 to 1) allocated for validation if \code{create_validation = TRUE}. Default is \code{0.1}.
+#' @param batch_size \code{Integer}. Number of samples per batch during training. Default is \code{256}.
+#' @param n_epochs \code{Integer}. Number of training epochs. Default is \code{150}.
+#' @param preprocess \code{Boolean}. Set if the data need preprocessing steps using 'recipes', such as 'step_normalize' or 'step_dummy'. Default is \code{TRUE}, meaning that this process is automatically done.
+#'
+#' @returns An invisible model_bundle containing the trained encoder weights and hyperparameters, in which bundle_type = "scarf_bundle".
 scarf_fit = function(
   dataframe_train,
   exclude_columns = NULL,

@@ -579,10 +579,10 @@ scarf_encoder <- torch::nn_module(
 
 
     self$num_cont <- num_cont
-    self$has_cat <- length(cat_dims) > 0
+    self$num_cat <- length(cat_dims)
 
     # Embeddings for categorical columns
-    if (self$has_cat) {
+    if (self$num_cat > 0) {
       self$emb_dims <- sapply(cat_dims, function(x) min(50, ceiling((x + 1) / 2)))  # How many dimensions each embedding
 
       # Embedding module
@@ -640,13 +640,8 @@ scarf_encoder <- torch::nn_module(
   # Forward pass
   forward = function(x) {
 
-    #print("SCARF......")
-    #print(x)
-
-
-    # Check if it has categorical values so that it needs embeddings
-    if (self$has_cat) {
-      x_cont <- x[, 1:self$num_cont, drop = FALSE]  # Numerical are the first columns
+    # Check categorical values
+    if (self$num_cat > 0) {
       x_cat <- x[, (self$num_cont + 1):ncol(x), drop = FALSE]$to(dtype = torch::torch_long())  # Categorical are at the end
 
       # Get embeddings
@@ -656,13 +651,51 @@ scarf_encoder <- torch::nn_module(
         embedded_list[[i]] <- self$embeddings[[i]](cat_col)
       }
 
-      # Concatenate
       x_emb <- torch::torch_cat(embedded_list, dim = 2)
-      x_prepared <- torch::torch_cat(list(x_cont, x_emb), dim = 2)
+
+
+      # Check numerical values
+      if (self$num_cont > 0) {
+        x_cont <- x[, 1:self$num_cont, drop = FALSE]  # Numerical are the first columns
+        x_prepared <- torch::torch_cat(list(x_cont, x_emb), dim = 2)
+      } else {
+        x_prepared <- x_emb
+      }
 
     } else {
       x_prepared <- x
     }
+
+    # Forward through the main encoder
+    output <- self$encoder(x_prepared)
+    return (output)  # Output [256, 95] con UNSW-NB15
+
+
+
+
+
+
+
+
+    # Check if it has categorical values so that it needs embeddings
+    # if (self$has_cat) {
+    #   x_cont <- x[, 1:self$num_cont, drop = FALSE]  # Numerical are the first columns
+    #   x_cat <- x[, (self$num_cont + 1):ncol(x), drop = FALSE]$to(dtype = torch::torch_long())  # Categorical are at the end
+    #
+    #   # Get embeddings
+    #   embedded_list <- list()
+    #   for (i in seq_len(ncol(x_cat))) {
+    #     cat_col <- x_cat[, i]
+    #     embedded_list[[i]] <- self$embeddings[[i]](cat_col)
+    #   }
+    #
+    #   # Concatenate
+    #   x_emb <- torch::torch_cat(embedded_list, dim = 2)
+    #   x_prepared <- torch::torch_cat(list(x_cont, x_emb), dim = 2)
+    #
+    # } else {
+    #   x_prepared <- x
+    # }
 
     # Forward through the main encoder
     self$encoder(x_prepared)

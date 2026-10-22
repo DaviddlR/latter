@@ -16,7 +16,7 @@ get_bins(
 
 \item{metadata_for_cat}{It contains information about categorical columns. Default is \code{NULL}. User do not have to provide it.}
 
-\item{T}{Maximum number of bins per column. of target bins. Default: \code{10}.}
+\item{T}{Maximum number of bins per column of target bins. Default: \code{10}.}
 
 \item{handle_categorical}{Only \code{'top_frequent'} is implemented for now.}
 }

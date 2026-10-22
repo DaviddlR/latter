@@ -20,7 +20,7 @@
 #'
 #' @param dataset_train Training partition of the dataset.
 #' @param metadata_for_cat It contains information about categorical columns. Default is \code{NULL}. User do not have to provide it.
-#' @param T Maximum number of bins per column. of target bins. Default: \code{10}.
+#' @param T Maximum number of bins per column of target bins. Default: \code{10}.
 #' @param handle_categorical Only \code{'top_frequent'} is implemented for now.
 #'
 #' @returns An object of class "metadata_for_binning" that contains the information needed to apply bins on a specific dataset.

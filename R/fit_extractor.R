@@ -36,7 +36,7 @@
 #'     label = sample(0:1, 120, replace = TRUE)
 #'   )
 #'
-#'   tmp_path <- tempfile(fileext = ".pt")
+#'   tmp_path <- tempfile()
 #'
 #'   # Fit SCARF one epoch
 #'   fit_extractor(
@@ -58,12 +58,12 @@ fit_extractor <- function (
     dataframe_train,
     pretraining_type = "SCARF",
     handle_categorical = "top_frequent",
-    corruption_during_binning = "FALSE",
+    corruption_during_binning = FALSE,
     exclude_columns = NULL,
     create_validation = FALSE,
     validation_proportion = 0.1,
     batch_size = 256,
-    n_epochs = 1,
+    n_epochs = 150,
     save_path = "pretrained",
     preprocess = TRUE
 ) {

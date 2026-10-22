@@ -1,22 +1,9 @@
 
-# @details
-# The algorithms that can be used for feature extraction require each predictor
-#  to be numerical. For that reason, if your dataset
-# contains categorical data, before using this step, you must:
-# \itemize{
-#   \item Impute missing values (i.e. \code{step_impute_median()})
-#   \item Convert categorical data to numerical data (i.e.
-#   \code{step_dummy(..., one_hot = TRUE)})
-#   \item Normalize numerical data (i.e. \code{step_nomalize()})
-# }
-#    DEPRECATED. NOW USERS DO NOT NEED TO REMOVE CATEGORICAL COLUMNS
-
-
-
-
 
 #' Extract latent features using Self-Supervised Learning methods
 #'
+#' @details
+#' The step trains the selected SSL method on the columns chosen in \code{...} during \code{prep()} and replaces them with the latent representation during \code{bake()}. Categorical columns are handled internally. Numerical columns are \strong{not} scaled by this step, so normalize them beforehand (e.g. \code{recipes::step_normalize()}) and impute missing values.
 #'
 #'
 #' @param recipe A recipe object. The step will be added to the sequence of
@@ -55,7 +42,41 @@
 #' @export
 #'
 #' @examples
-#' a <- 1
+#' \donttest{
+#' library(recipes)
+#' if (torch::torch_is_installed()) {
+#'
+#' # Mixed numerical / categorical data with a binary outcome
+#' df <- data.frame(
+#'   age          = rnorm(120, mean = 35, sd = 10),
+#'   income       = runif(120, 15000, 75000),
+#'   risk_profile = factor(sample(c("Low", "Medium", "High"), 120, replace = TRUE)),
+#'   churn        = factor(sample(c("yes", "no"), 120, replace = TRUE))
+#' )
+#' train <- df[1:90, ]
+#' test  <- df[91:120, ]
+#'
+#' rec <- recipe(churn ~ ., data = train) |>
+#'   step_normalize(all_numeric_predictors()) |>
+#'   step_extract_latent(
+#'     all_predictors(),
+#'     pretraining_type = "SCARF",   # or "VIME", "Binning"
+#'     epochs = 1,
+#'     batch_size = 32
+#'   )
+#'
+#' # Pretrain on the training set only
+#' trained <- prep(rec, training = train)
+#'
+#' # Apply the trained encoder to new data
+#' train_latent <- bake(trained, new_data = NULL)
+#' test_latent  <- bake(trained, new_data = test)
+#'
+#' dim(test_latent)            # outcome + latent dimensions
+#' head(names(test_latent))    # "churn" "extracted_dim_1" ...
+#'
+#' }
+#' }
 step_extract_latent <- function(
   recipe,
   ...,
@@ -63,7 +84,7 @@ step_extract_latent <- function(
   trained = FALSE,
   pretraining_type = "SCARF",  # De aquí hacia abajo, los parámetros que necesito yo
   handle_categorical = "top_frequent",
-  corruption_during_binning = "TRUE",
+  corruption_during_binning = TRUE,
   # exclude_columns = NULL,
   create_validation = FALSE,
   validation_proportion = 0.1,
@@ -184,7 +205,7 @@ prep.step_extract_latent <- function(x, training, info = NULL, ...) {
     trained = TRUE,  # As prep is completed, we set trained to TRUE
     pretraining_type = x$pretraining_type,
     handle_categorical = x$handle_categorical,
-    corruption_during_binning = x$corruption_during_training,
+    corruption_during_binning = x$corruption_during_binning,
     create_validation = x$create_validation,
     validation_proportion = x$validation_proportion,
     batch_size = x$batch_size,
