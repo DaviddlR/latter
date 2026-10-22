@@ -201,6 +201,35 @@ create_validation_set = function(x, validation_proportion) {
 
 
 
+# Corrupt a batch by replacing, for each element, N = number_of_rows * corruption_rate columns with values given by other in-batch instances
+corrupt_batch = function(x, corruption_rate) {
+  batch_size <- x$size(1)
+  num_features <- x$size(2)
+
+  mask <- torch::torch_rand_like(x) < corruption_rate
+
+  random_indices <- torch::torch_randint(
+    low = 1,
+    high = batch_size + 1,  # 1 and +1 because R indices start at 1
+    size = c(batch_size, num_features),
+    device = x$device,
+    dtype = torch::torch_long()
+  )
+
+  x_random <- torch::torch_gather(x, dim=1, index = random_indices)
+
+  x_corrupted <- torch::torch_where(mask, x_random, x)
+
+  return(list(
+    x_corrupted = x_corrupted,
+    mask = mask
+  ))
+}
+
+
+
+
+
 # Get information about categorical variables for transforming them to integers.
 # If metadata is null, the method collect it from the training set. Else, it uses
 # the metadata to transform new data (validation and test)

@@ -70,9 +70,9 @@ vime_loss <- torch::nn_module(
     mask_original <- target$mask
     x_original <- target$x
 
-    # Extract predictions
-    predicted_num_features <- input$feature_estimation.cont_estimation
-    predicted_cat_features <- input$feature_estimation.cat_estimation
+    # Extract predictions (they come from neural_network_models > vime wrapper)
+    predicted_num_features <- input$cont_estimation
+    predicted_cat_features <- input$cat_estimation
     predicted_mask <- input$mask_estimation
 
     # print(predicted_num_features)
@@ -94,14 +94,16 @@ vime_loss <- torch::nn_module(
 
 
     # Numerical variables
-    if (self$num_cont > 0 && !is.null(predicted_num_features)) {
+    if (self$num_cont > 0) {
+      if (is.null(predicted_num_features)) stop("vime_loss: num_cont > 0 but no 'cont' output.")
       x_cont_target <- x_original[, 1:self$num_cont, drop = FALSE]
       num_loss <- torch::nnf_mse_loss(predicted_num_features, x_cont_target)
-      reconstruction_loss <- reconstruction_loss + loss_num
+      reconstruction_loss <- reconstruction_loss + num_loss
     }
 
     # Categorical variables
-    if (self$num_cat > 0 && !is.null(predicted_cat_features)) {
+    if (self$num_cat > 0) {
+      if (is.null(predicted_cat_features)) stop("vime_loss: num_cat > 0 but no 'cat' output.")
       cat_loss <- torch::torch_tensor(0.0, device = x_original$device)
 
       for (i in seq_len(self$num_cat)) {
@@ -118,7 +120,6 @@ vime_loss <- torch::nn_module(
     # "Encoder is trained by minimizing the weighted sum of both losses" (alpha parameter)
     final_loss <- mask_loss + self$alpha * reconstruction_loss
     return(final_loss)
-
 
   }
 )

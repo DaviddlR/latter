@@ -533,9 +533,18 @@ vime_wrapper <- torch::nn_module(
 
     # Get feature estimation and mask estimation (act like projection heads, so we do not need an additional one)
     feature_estimation <- self$feature_estimator(x_corrupted_encoded)  # Cont estimation and cat estimation
+    cont_estimation <- feature_estimation$cont_estimation
+    cat_estimation <- feature_estimation$cat_estimation
+
     mask_estimation <- self$mask_estimator(x_corrupted_encoded)  # mask prediction
 
-    result <- list(feature_estimation = feature_estimation, mask_estimation = mask_estimation)
+
+    return (list(
+      cont_estimation = cont_estimation,
+      cat_estimation = cat_estimation,
+      mask_estimation = mask_estimation
+    ))
+
   }
 )
 

@@ -139,22 +139,13 @@ custom_binning_step_callback <- luz::luz_callback(
 
       x <- batch$x  # Data
 
-      batch_size <- x$size(1)
-      num_features <- x$size(2)
+      corrupted_batch <- corrupt_batch(x, self$corruption_rate)  # utils.R
 
-      mask <- torch::torch_rand_like(x) < self$corruption_rate
+      x_corrupted <- corrupted_batch$x_corrupted
 
-      random_indices <- torch::torch_randint(
-        low = 1,
-        high = batch_size + 1,  # 1 and +1 because R indices start at 1
-        size = c(batch_size, num_features),
-        device = x$device,
-        dtype = torch::torch_long()
-      )
-
-      x_random <- torch::torch_gather(x, dim=1, index = random_indices)
-
-      x_corrupted <- torch::torch_where(mask, x_random, x)
+      if(is.null(x_corrupted)){
+        print("ERRRRRROOOOOOORRRRRR en corrupción")
+      }
 
       ctx$input <- x_corrupted  # Input for the forward method
       # We do not modify ctx$target. It comes from training dataset binned.
@@ -173,22 +164,9 @@ custom_binning_step_callback <- luz::luz_callback(
 
       x <- batch$x  # Data
 
-      batch_size <- x$size(1)
-      num_features <- x$size(2)
+      corrupted_batch <- corrupt_batch(x, self$corruption_rate)
 
-      mask <- torch::torch_rand_like(x) < self$corruption_rate
-
-      random_indices <- torch::torch_randint(
-        low = 1,
-        high = batch_size + 1,  # 1 and +1 because R indices start at 1
-        size = c(batch_size, num_features),
-        device = x$device,
-        dtype = torch::torch_long()
-      )
-
-      x_random <- torch::torch_gather(x, dim=1, index = random_indices)
-
-      x_corrupted <- torch::torch_where(mask, x_random, x)
+      x_corrupted <- corrupted_batch$x_corrupted
 
       ctx$input <- x_corrupted  # Input for the forward method
       # We do not modify ctx$target. It comes from training dataset binned.
@@ -333,23 +311,10 @@ custom_vime_step_callback <- luz::luz_callback(
 
     x <- batch$x  # Data
 
-    batch_size <- x$size(1)
-    num_features <- x$size(2)
+    corrupted_batch <- corrupt_batch(x, self$corruption_rate)  # utils.R
 
-    mask <- torch::torch_rand_like(x) < self$corruption_rate
-
-    random_indices <- torch::torch_randint(
-      low = 1,
-      high = batch_size + 1,  # 1 and +1 because R indices start at 1
-      size = c(batch_size, num_features),
-      device = x$device,
-      dtype = torch::torch_long()
-    )
-
-    x_random <- torch::torch_gather(x, dim=1, index = random_indices)
-
-    x_corrupted <- torch::torch_where(mask, x_random, x)
-
+    x_corrupted <- corrupted_batch$x_corrupted
+    mask <- corrupted_batch$mask
 
     # Binary mask to float (0.0 , 1.0)
     mask_target <- mask$to(dtype = torch::torch_float())
@@ -375,23 +340,10 @@ custom_vime_step_callback <- luz::luz_callback(
 
     x <- batch$x  # Data
 
-    batch_size <- x$size(1)
-    num_features <- x$size(2)
+    corrupted_batch <- corrupt_batch(x, self$corruption_rate)
 
-    mask <- torch::torch_rand_like(x) < self$corruption_rate
-
-    random_indices <- torch::torch_randint(
-      low = 1,
-      high = batch_size + 1,  # 1 and +1 because R indices start at 1
-      size = c(batch_size, num_features),
-      device = x$device,
-      dtype = torch::torch_long()
-    )
-
-    x_random <- torch::torch_gather(x, dim=1, index = random_indices)
-
-    x_corrupted <- torch::torch_where(mask, x_random, x)
-
+    x_corrupted <- corrupted_batch$x_corrupted
+    mask <- corrupted_batch$mask
 
     # Binary mask to float (0.0 , 1.0)
     mask_target <- mask$to(dtype = torch::torch_float())
@@ -540,24 +492,14 @@ custom_scarf_step_callback <- luz::luz_callback(
 
     x <- batch$x  # Data
 
-    batch_size <- x$size(1)
-    num_features <- x$size(2)
+    corrupted_batch <- corrupt_batch(x, self$corruption_rate)
+    x_corrupted <- corrupted_batch$x_corrupted
 
-    mask <- torch::torch_rand_like(x) < self$corruption_rate
 
-    random_indices <- torch::torch_randint(
-      low = 1,
-      high = batch_size + 1,  # 1 and +1 because R indices start at 1
-      size = c(batch_size, num_features),
-      device = x$device,
-      dtype = torch::torch_long()
-    )
 
-    x_random <- torch::torch_gather(x, dim=1, index = random_indices)
-    x_corrupted <- torch::torch_where(mask, x_random, x)
-
+    ctx$input <- list(x, x_corrupted)
     #ctx$batch[[2]] <- batch$y
-    ctx$batch[[1]] <- c(x, x_corrupted)
+    #ctx$batch[[1]] <- c(x, x_corrupted)
 
 
 
@@ -571,24 +513,11 @@ custom_scarf_step_callback <- luz::luz_callback(
 
     x = batch$x  # Data
 
-    batch_size = x$size(1)
-    num_features = x$size(2)
-
-    mask = torch::torch_rand_like(x) < self$corruption_rate
-
-    random_indices <- torch::torch_randint(
-      low = 1,
-      high = batch_size + 1,  # 1 and +1 because R indices start at 1
-      size = c(batch_size, num_features),
-      device = x$device,
-      dtype = torch::torch_long()
-    )
-
-    x_random <- torch::torch_gather(x, dim=1, index = random_indices)
-    x_corrupted <- torch::torch_where(mask, x_random, x)
+    corrupted_batch <- corrupt_batch(x, self$corruption_rate)
+    x_corrupted <- corrupted_batch$x_corrupted
 
     #ctx$target <- batch$y
-    ctx$input <- c(x, x_corrupted)
+    ctx$input <- list(x, x_corrupted)
   },
 
 
