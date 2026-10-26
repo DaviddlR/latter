@@ -1,7 +1,35 @@
 
+############ Subtab-like PRETRAINING ############
+subtab_fit = function(
+    dataframe_train,
+    exclude_columns = NULL,
+    create_validation = FALSE,
+    validation_proportion = 0.1,
+    batch_size = 256,
+    n_epochs = 1,
+    preprocess = TRUE
+) {
+
+  # Load and preprocess data
+  preprocessed_datasets <- prepare_data(
+    dataframe_train,
+    exclude_columns = exclude_columns,
+    create_validation = create_validation,
+    validation_proportion = validation_proportion,
+    preprocess = preprocess
+  )
+
+  x_train <- preprocessed_datasets$train_set
+  x_val <- preprocessed_datasets$val_set  # May be null
+  recipe <- preprocessed_datasets$recipe  # May be null
+  metadata_for_cat <- preprocessed_datasets$metadata_for_cat
 
 
-############ BINNING PRETRAINING ############
+}
+
+
+
+############ BINNING-like PRETRAINING ############
 #' Train an encoder following the 'Binning as a pretext task' objective
 #'
 #' @param dataframe_train A \code{data.frame} used to train de model.
@@ -207,7 +235,7 @@ custom_binning_step_callback <- luz::luz_callback(
 
 
 
-############ VIME PRETRAINING ############
+############ VIME-like PRETRAINING ############
 #' Train an encoder following the 'VIME' objective
 #'
 #' @param dataframe_train A \code{data.frame} used to train de model.
