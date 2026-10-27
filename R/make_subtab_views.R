@@ -54,7 +54,7 @@ make_subtab_views_official <- function(d, n_views, overlap) {
   stopifnot(n_views >= 1, n_views <= d, overlap >= 0, overlap <= 1)
 
 
-  s <- d %/% n_views  # Ancho base
+  s <- d %/% n_views  # Ancho base. División integral. Devuelve un entero (python //)
   print(s)
 
   # Number of overlapping features between subsets
@@ -64,14 +64,23 @@ make_subtab_views_official <- function(d, n_views, overlap) {
   # TRUE will be ancho base + overlapping features. FALSE remaining columns
 
   if (d %% n_views != 0) {
-    warning(d %% n_views, " trailing column(s) are never used as input (as in the reference implementation).")
+    warning(d %% n_views, " column(s) (at the end) are never used as input (as in the official implementation).")
   }
 
 
   views <- matrix(FALSE, n_views, d)
   for (i in seq_len(n_views) - 1L) {                # i = 0..K-1
     from <- if (i == 0) 0 else i * s - n_overlap  # Same as in the official repo
-    to   <- if (i == 0) s + n_overlap else (i + 1) * s
+    to   <- if (i == 0) {
+      s + n_overlap  # First
+    } else if (i == n_views - 1L) {
+      d  # Last
+    } else {
+      (i + 1) * s  # Rest
+    }
+
+
+      if (i == 0) s + n_overlap else (i + 1) * s
     views[i + 1, (from + 1):min(to, d)] <- TRUE     # slice [from:to) -> columns from+1..to
   }
 
@@ -82,6 +91,8 @@ make_subtab_views_official <- function(d, n_views, overlap) {
 
 
 apply_view_mask <- function(x, views, num_cont, cat_dims = NULL, add_indicator = TRUE) {
+
+  x <- torch::torch_tensor(as.matrix(x), dtype = torch::torch_float32())  # TODO borrar esto en un futuro será tensor de base creo
 
   num_cat <- length(cat_dims)
   num_features <- x$size(2)
@@ -99,7 +110,7 @@ apply_view_mask <- function(x, views, num_cont, cat_dims = NULL, add_indicator =
 
   if (views$dim() == 1) views <- views$unsqueeze(1)
 
-  if (views$size(2) != num_featuresd) {
+  if (views$size(2) != num_features) {
     stop("views has ", views$size(2), " columns but x has ", num_features)
   }
 
