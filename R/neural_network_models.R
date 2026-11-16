@@ -41,43 +41,307 @@ classifier_network <- torch::nn_module(
 
 
 
-
+#' Subtab encoder (MLP)
+#'
+#' It receives the masked views produced by \code{apply_view_mask}. Numerical columns pass as they are (optionally followed by an indicator
+#' that tells which ones are really observed by the model). Categorical columns go through embedding layers.
+#'
+#' @param num_cont Number of numerical features
+#' @param cat_dims Number of levels per categorical column
+#' @param hidden_dim Width of the MLP (size of the latent representation)
+#' @param num_hidden Number of linear layers
+#' @param dropout Dropout probability after each hidden activation
+#' @param use_indicator \code{Boolean}. If \code{TRUE}, the 'observed' tensor of \code{apply_view_mask()} is concatenated to the numerical columns.
+#'
+#' @returns A \code{torch::nn_module} representing the encoder. Its forward takes (x, observed) and returns [rows, hidden_dim].
+#' @noRd
 subtab_encoder <- torch::nn_module(
   name = "subtab_encoder",
 
-  initialize = function() {
+  initialize = function(num_cont, cat_dims, hidden_dim = 256, num_hidden = 4, dropout = 0.0, use_indicator = TRUE) {
+
+    self$num_cont <- num_cont
+    self$cat_dims <- cat_dims
+    self$num_cat <- length(cat_dims)
+    self$hidden_dim <- hidden_dim
+    self$num_hidden <- num_hidden
+
+    self$use_indicator <- use_indicator
+
+    if (self$num_cat > 0) {
+      self$emb_dims <- sapply(cat_dims, function(x) min(50, ceiling((x + 1) / 2)))  # How many dimensions each embedding
+
+      # Embedding module
+      self$embeddings <- torch::nn_module_list(  # For each categorical, an embedding layer
+        lapply(seq_along(cat_dims), function(i) {
+          torch::nn_embedding(
+            num_embeddings = cat_dims[i] + 2, # + 2 for out of range
+            embedding_dim = self$emb_dims[i]
+          )
+        })
+      )
+
+      total_in_dim <- num_cont + sum(self$emb_dims)
+      # print(total_in_dim)
+    } else {
+      total_in_dim <- num_cont
+    }
+
+
+
+    # Create neural network
+    layers <- list()
+
+    index_layer <- 1
+
+    if (num_hidden > 1){
+      for (i in 1:(num_hidden - 1)){
+
+        # Linear layer
+        layers[[index_layer]] <- torch::nn_linear(total_in_dim, hidden_dim)
+        index_layer <- index_layer + 1
+
+        # Batch norm layer
+        #layers[[index_layer]] <- torch::nn_batch_norm1d(hidden_dim)
+        #index_layer <- index_layer + 1
+
+        # RELU
+        layers[[index_layer]] <- torch::nn_relu(inplace=TRUE)
+        index_layer <- index_layer + 1
+
+        # Dropout
+        #layers[[index_layer]] <- torch::nn_dropout(dropout)
+        #index_layer <- index_layer + 1
+
+        # Update in_dim after first layer
+        total_in_dim <- hidden_dim
+
+      }
+    }
+
+    layers[[index_layer]] <- torch::nn_linear(total_in_dim, hidden_dim)
+
+    # Set output dimension
+    self$output_dim <- hidden_dim
+
+    # Main encoder module
+    self$encoder <- do.call(torch::nn_sequential, layers)
 
   },
 
-  forward = function() {
+
+  # x [rows, nu_cont + num_cat]
+  # observed [rows, num_cont] with 1 is observed and 0 is masked
+  forward = function(x, observed = NULL) {
+
+    parts <- list()
+
+    # Numerical columns first
+    if (self$num_cont > 0) {
+      parts[length(parts) + 1] <- x[, 1:self$num_cont, drop = FALSE]  # First, numerical
+
+      if (self$use_indicator) {
+        if (is.null(observed)) {
+          stop("subtab_encoder > forward: it was built with use_indicator = TRUE, so 'observed', from apply_view_mask, is required")
+        }
+      }
+
+      parts[[length(parts) + 1]] <- observed  # Second, observed (use_indicator)
+    }
+
+    # Categorical last
+    if (self$num_cat > 0) {
+      x_cat <- x[, (self$num_cont + 1):x$size(2), drop = FALSE]$to(dtype = torch::torch_long())
+
+      for (i in seq_len(self$num_cat)) {
+        parts[[length(parts) + 1]] <- self$embeddings[[i]](x_cat[, i])
+      }
+    }
+
+    x_prepared <- torch::torch_cat(parts, dim = 2)
+
+    self$encoder(x_prepared)
 
   }
 )
 
-# We use this for contrastive and distance losses
+
+
+#' Subtab projection head
+#'
+#' Projects the latent representation of each view into the space where the contrastive and distance losses are computed.
+#' It is only used during pretraining
+#'
+#' @param in_dim Number of input dimensions (size of the encoder output)
+#' @param hidden_dim Size of the projection (output of the head)
+#' @param num_hidden Number of linear layers
+#' @param dropout Dropout probability after each hidden activation
+#'
+#' @returns A 'torch::nn_module' representing the projection head. Its forward takes [rows, in_dim] and returns [rows, hidden_dim]
+#' @noRd
 subtab_projection_head <- torch::nn_module(
   name = "subtab_projection_head",
 
-  initialize = function() {
+
+  initialize = function(in_dim, hidden_dim = 256, num_hidden = 2, dropout = 0.0) {
+
+    layers <- list()
+
+    index_layer <- 1
+
+    if (num_hidden > 1){
+      for (i in 1:(num_hidden - 1)){
+
+        # Linear layer
+        layers[[index_layer]] <- torch::nn_linear(in_dim, hidden_dim)
+        index_layer <- index_layer + 1
+
+        # Batch norm layer
+        # layers[[index_layer]] <- torch::nn_batch_norm1d(hidden_dim)
+        # index_layer <- index_layer + 1
+
+        # RELU
+        layers[[index_layer]] <- torch::nn_relu(inplace=TRUE)
+        index_layer <- index_layer + 1
+
+        # Dropout
+        layers[[index_layer]] <- torch::nn_dropout(dropout)
+        index_layer <- index_layer + 1
+
+        # Update in_dim after first layer
+        in_dim <- hidden_dim
+
+      }
+    }
+
+    layers[[index_layer]] <- torch::nn_linear(in_dim, hidden_dim)
+
+    self$head <- do.call(torch::nn_sequential, layers)
 
   },
 
-  forward = function() {
-
+  # Forward pass
+  forward = function(x) {
+    self$head(x)
   }
 
 )
 
 
+
+
+#' Subtab decoder
+#'
+#' From the latent representation of one view, it reconstruct the whole original sample, not only the ones that the view kept. This forces the model to carry information about the columns it cannot see
+#'
+#' The output heads are the ones of VIME (vime_feature_estimator): a linear layer for the numerical colums and one classifier per categorical column.
+#'
+#' @param in_dim Number of input dimensions (size of the encoder output).
+#' @param num_cont Number of numerical features.
+#' @param cat_dims Number of levels per categorical column.
+#' @param hidden_dim Width of the hidden layers.
+#' @param num_hidden Number of neural blocks before the otput heads. With 0, the heads read the latent directly.
+#' @param dropout Dropout probability after each hidden activation.
+#'
+#' @returns A 'torch::nn_module' representing the decoder. Its forward returns a list with \code{cont_estimation} ([rows, num_cont] or NULL) and \code{cat_estimation} ([rows, cat_dims[i] + 2] per categorical column).
+#' @noRd
+subtab_decoder <- torch::nn_module(
+  name = "subtab_decoder",
+
+
+  initialize = function(in_dim, num_cont, cat_dims, hidden_dim = 256, num_hidden = 2, dropout = 0.0) {
+
+    layers <- list()
+    current_dim <- in_dim  # Size of what the output heads will receive
+
+    for (i in seq_len(num_hidden)) {  # seq_len(0) is empty, so num_hidden = 0 is valid
+      layers[[length(layers) + 1]] <- torch::nn_linear(current_dim, hidden_dim)
+      layers[[length(layers) + 1]] <- torch::nn_relu(inplace = TRUE)
+      layers[[length(layers) + 1]] <- torch::nn_dropout(dropout)
+
+      current_dim <- hidden_dim
+    }
+
+    # nn_identity() returns its input unchanged (case without hidden blocks)
+    self$main_decoder <- if (length(layers) > 0) do.call(torch::nn_sequential, layers) else torch::nn_identity()
+
+    # Same output heads as VIME. The logits of a categorical have cat_dims[i] + 2 classes (unknown level and mask token included)
+    self$feature_estimator <- vime_feature_estimator(current_dim, num_cont, cat_dims)  # TODO: se reutilizan. Cambiar nombre
+  },
+
+
+  forward = function() {
+    self$feature_estimator(self$main_decoder(z))
+  }
+
+
+)
+
+
+
+
+
+
+# TODO
 subtab_wrapper <- torch::nn_module(
   name = "subtab_wrapper",
 
-  initialize = function() {
+#' Title
+#'
+#' @param num_cont Number of numerical features
+#' @param cat_dims
+#' @param hidden_dim
+#' @param num_hidden
+#' @param dropout
+#' @param use_indicator
+#' @param head_hidden_dim
+#' @param head_num_hidden
+#' @param decoder_hidden_dim
+#' @param decoder_num_hidden
+#'
+#' @returns
+#' @export
+#'
+#' @examples
+  initialize = function(num_cont, cat_dims, hidden_dim = 256, num_hidden = 4, dropout = 0.0, use_indicator = TRUE,
+                        head_hidden_dim = 256, head_num_hidden = 2,
+                        decoder_hidden_dim = 256, decoder_num_hidden = 2) {
+
+    # Create encoder
+    self$main_encoder <- subtab_encoder(
+      num_cont = num_cont,
+      cat_dims = cat_dims,
+      hidden_dim = hidden_dim,
+      num_hidden = num_hidden,
+      dropout = dropout,
+      use_indicator = use_indicator
+    )
+
+    # Get latent dimension
+    latent_dim <- self$main_encoder$output_dim
+
+    # Create projection head
+    self$projection_head <- subtab_projection_head(
+      in_dim = latent_dim,
+      hidden_dim = head_hidden_dim,
+      num_hidden = head_num_hidden,
+      dropout = dropout
+    )
+
+    # Create decoder
+    self$decoder <- subtab_decoder(
+      in_dim = head_hidden_dim,
+      num_cont = num_cont,
+      cat_dims = cat_dims,
+      hidden_dim = hidden_dim,
+      num_hidden = num_hidden,
+      dropout = dropout
+    )
 
   },
 
-  forward = function() {
-
+  forward = function(x) {
+    # TODO
   }
 
 

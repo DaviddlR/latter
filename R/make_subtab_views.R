@@ -1,15 +1,65 @@
-#' Divide a batch of "d" number of columns each row to "n_views" subsets
+#' #' Divide a batch of "d" number of columns each row to "n_views" subsets
+#' #'
+#' #' @param d
+#' #' @param n_views
+#' #' @param overlap
+#' #' @param shuffle
+#' #'
+#' #' @returns
+#' #' @export
+#' #'
+#' #' @examples
+#' make_subtab_views__alternative <- function(d, n_views, overlap = 0.5, shuffle = TRUE) {
+#'   if (!is.numeric(d) || d < 1) {
+#'     stop("make_subtab_views: d must be a positive integer")
+#'   }
 #'
-#' @param d
-#' @param n_views
-#' @param overlap
-#' @param shuffle
+#'   if (!is.numeric(n_views) || n_views < 1 || n_views > d) {
+#'     stop("make_subtab_views: n_views must be an integer between 1 and d")
+#'   }
 #'
-#' @returns
-#' @export
+#'   if (!is.numeric(overlap) || overlap < 0 || overlap >= 1) {
+#'     stop("overlap must be in [0, 1)")
+#'   }
 #'
-#' @examples
-make_subtab_views__alternative <- function(d, n_views, overlap = 0.5, shuffle = TRUE) {
+#'   perm <- if (shuffle) sample.int(d) else seq_len(d)
+#'
+#'   # View size and step between consecutive views, in "positions".
+#'   # size + (K - 1) * step = d, and size - step = overlap * size
+#'   size <- if (n_views == 1) d else d / (1 + (n_views - 1) * (1 - overlap))
+#'   step <- if (n_views == 1) 0 else (d - size) / (n_views - 1)
+#'
+#'   # Position i (1..d) is represented by its center i - 0.5. The tiny shift makes
+#'   # a center that falls exactly on a boundary belong to the later view
+#'   centers <- seq_len(d) - 0.5 + 1e-9
+#'
+#'   views <- matrix(FALSE, nrow = n_views, ncol = d)
+#'   for (k in seq_len(n_views)) {
+#'     from <- (k - 1) * step
+#'     inside <- centers >= from & centers < from + size  # logical [d], by position
+#'     views[k, perm[inside]] <- TRUE                     # position -> original column
+#'   }
+#'
+#'   return (views)
+#' }
+
+
+
+
+
+
+#' Divide a batch of \code{d} number of columns each row to \code{n_views} subsets
+#'
+#' @param d \code{Integer}. Total number of columns of the preprocessed data
+#' @param n_views \code{Integer}. Number of views to create. It must be between 1 and \code{d}
+#' @param overlap \code{Numeric} in [0,1]. Overlap between neighbouring views. Its
+#' @param shuffle \code{Boolean}. If \code{TRUE}, the columns are randomly permuted once before being split, so the views do not depend on the column order (numerical columns come first and categorical come last).
+#'
+#' @returns A \code{logical} matrix of size [n_views, d]. \code{views[k,j] = TRUE} means that column \code{j} belongs to view \code{k}.
+#' @noRd
+make_subtab_views_official <- function(d, n_views, overlap, shuffle = TRUE) {
+  # TODO: hay que llamar a esto en qué momento? Antes de introducir ruido
+
   if (!is.numeric(d) || d < 1) {
     stop("make_subtab_views: d must be a positive integer")
   }
@@ -22,36 +72,7 @@ make_subtab_views__alternative <- function(d, n_views, overlap = 0.5, shuffle = 
     stop("overlap must be in [0, 1)")
   }
 
-  perm <- if (shuffle) sample.int(d) else seq_len(d)
 
-  # View size and step between consecutive views, in "positions".
-  # size + (K - 1) * step = d, and size - step = overlap * size
-  size <- if (n_views == 1) d else d / (1 + (n_views - 1) * (1 - overlap))
-  step <- if (n_views == 1) 0 else (d - size) / (n_views - 1)
-
-  # Position i (1..d) is represented by its center i - 0.5. The tiny shift makes
-  # a center that falls exactly on a boundary belong to the later view
-  centers <- seq_len(d) - 0.5 + 1e-9
-
-  views <- matrix(FALSE, nrow = n_views, ncol = d)
-  for (k in seq_len(n_views)) {
-    from <- (k - 1) * step
-    inside <- centers >= from & centers < from + size  # logical [d], by position
-    views[k, perm[inside]] <- TRUE                     # position -> original column
-  }
-
-  return (views)
-}
-
-
-
-
-
-
-make_subtab_views_official <- function(d, n_views, overlap) {
-  # TODO: hay que llamar a esto en qué momento? Antes de introducir ruido
-
-  stopifnot(n_views >= 1, n_views <= d, overlap >= 0, overlap <= 1)
 
 
   s <- d %/% n_views  # Ancho base. División integral. Devuelve un entero (python //)
@@ -63,12 +84,18 @@ make_subtab_views_official <- function(d, n_views, overlap) {
 
   # TRUE will be ancho base + overlapping features. FALSE remaining columns
 
+  # if (d %% n_views != 0) {
+  #   warning(d %% n_views, " column(s) (at the end) are never used as input (as in the official implementation).")
+  # }
+
+  # If d is not divisible, the remainder goes to the last view, which will be wider than the others
   if (d %% n_views != 0) {
-    warning(d %% n_views, " column(s) (at the end) are never used as input (as in the official implementation).")
+    warning("make_subtab_views: ", d, " columns cannot be split evenly into ", n_views,
+            " views. The last view is wider because it takes the remaining ", d %% n_views, " column(s).")
   }
 
 
-  views <- matrix(FALSE, n_views, d)
+  first_views <- matrix(FALSE, n_views, d)
   for (i in seq_len(n_views) - 1L) {                # i = 0..K-1
     from <- if (i == 0) 0 else i * s - n_overlap  # Same as in the official repo
     to   <- if (i == 0) {
@@ -80,9 +107,17 @@ make_subtab_views_official <- function(d, n_views, overlap) {
     }
 
 
-      if (i == 0) s + n_overlap else (i + 1) * s
-    views[i + 1, (from + 1):min(to, d)] <- TRUE     # slice [from:to) -> columns from+1..to
+    if (i == 0) s + n_overlap else (i + 1) * s
+    first_views[i + 1, (from + 1):min(to, d)] <- TRUE     # slice [from:to) -> columns from+1..to
   }
+
+
+  # Shuffle if required. TRUE in the official repo (subtab > src > model.py)
+  perm <- if (shuffle) sample.int(d) else seq_len(d)  # Vector of length d with random values between [1, d] if shuffle = TRUE. Ordered vector if shuffle = FALSE
+
+  views <- matrix(FALSE, nrow = n_views, ncol = d)
+  views[, perm] <- first_views  # Column perm[p] of views receives column p of first_views
+
 
   return(views)
 
@@ -128,7 +163,9 @@ apply_view_mask <- function(x, views, num_cont, cat_dims = NULL, add_indicator =
     keep_cont <- keep[, , 1:num_cont]$to(dtype = x$dtype)          # [K, 1, nc]
     parts[[length(parts) + 1]] <- x3[, , 1:num_cont] * keep_cont   # [K, B, nc]  Apply mask to numerical columns (* 0 or * 1)
 
-    # Create binary tensor to indicate whether a feature has been masked or not
+    # Create binary tensor to indicate whether a feature has been masked or not.
+    # When masked, numerical columns are set to 0, which is a common value. add_indicator help the model to determine whether a
+    # numerical column has been masked or not.
     if (add_indicator) {
       observed <- keep_cont$expand(c(n_views, batch, num_cont))$reshape(c(n_views * batch, num_cont))
     }

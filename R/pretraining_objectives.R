@@ -30,16 +30,13 @@ subtab_fit = function(
   # print(length(x_train[1,]))  # Total number of columns
 
   # Get subtab views
-  views <- make_subtab_views_official(d = length(x_train[1,]), n_views = 4, overlap = 0.5)
-  print(views)
 
-
-  views <- make_subtab_views__alternative(d = length(x_train[1,]), n_views = 4, overlap = 0.5, shuffle = FALSE)
+  views <- make_subtab_views_official(d = length(x_train[1,]), n_views = 4, overlap = 0.5, shuffle = TRUE)
   print(views)
 
   applied <- apply_view_mask(x_train, views = views, num_cont = length(metadata_for_cat$num_cols), cat_dims = metadata_for_cat$cat_dims, add_indicator = TRUE)
 
-  print(applied)
+  print(applied)  # 701364 con UNSW-NB15 = 4 x 175341 train samples
 }
 
 
