@@ -81,12 +81,16 @@ subtab_encoder <- torch::nn_module(
         })
       )
 
-      total_in_dim <- num_cont + sum(self$emb_dims)
-      # print(total_in_dim)
-    } else {
-      total_in_dim <- num_cont
     }
+      #total_in_dim <- num_cont + sum(self$emb_dims)
+      # print(total_in_dim)
+    # } else {
+    #   total_in_dim <- num_cont
+    # }
 
+    total_in_dim <- num_cont
+    if (self$use_indicator) total_in_dim <- total_in_dim + num_cont
+    if (self$num_cat > 0) total_in_dim <- total_in_dim + sum(self$emb_dims)
 
 
     # Create neural network
@@ -138,15 +142,18 @@ subtab_encoder <- torch::nn_module(
 
     # Numerical columns first
     if (self$num_cont > 0) {
-      parts[length(parts) + 1] <- x[, 1:self$num_cont, drop = FALSE]  # First, numerical
+      parts[[length(parts) + 1]] <- x[, 1:self$num_cont, drop = FALSE]  # First, numerical
 
       if (self$use_indicator) {
         if (is.null(observed)) {
           stop("subtab_encoder > forward: it was built with use_indicator = TRUE, so 'observed', from apply_view_mask, is required")
         }
+
+        parts[[length(parts) + 1]] <- observed  # Second, observed (use_indicator)
+
       }
 
-      parts[[length(parts) + 1]] <- observed  # Second, observed (use_indicator)
+
     }
 
     # Categorical last
@@ -270,7 +277,7 @@ subtab_decoder <- torch::nn_module(
   },
 
 
-  forward = function() {
+  forward = function(z) {
     self$feature_estimator(self$main_decoder(z))
   }
 
@@ -282,7 +289,6 @@ subtab_decoder <- torch::nn_module(
 
 
 
-# TODO
 subtab_wrapper <- torch::nn_module(
   name = "subtab_wrapper",
 
@@ -330,7 +336,7 @@ subtab_wrapper <- torch::nn_module(
 
     # Create decoder
     self$decoder <- subtab_decoder(
-      in_dim = head_hidden_dim,
+      in_dim = latent_dim,
       num_cont = num_cont,
       cat_dims = cat_dims,
       hidden_dim = hidden_dim,
@@ -340,8 +346,25 @@ subtab_wrapper <- torch::nn_module(
 
   },
 
-  forward = function(x) {
-    # TODO
+  forward = function(x_input) {  # Here, x comes from apply_view_mask (luz callback)
+
+    # Get latent representation
+    z <- self$main_encoder(x_input$x, x_input$observed)
+
+    # Get proyections for contrastive and distance losses (branch 1 - paper_fig.1)
+    projection <- self$projection_head(z)
+
+    # Get reconstruction for reconstruction loss (branch 2 - paper_fig.1)
+    reconstruction <- self$decoder(z)
+
+
+    # Return everything
+    return(list(
+      projection = projection,
+      cont_estimation = reconstruction$cont_estimation,  # It comes from vime_feature_estimator (TODO: change name (?))
+      cat_estimation = reconstruction$cat_estimation
+    ))
+
   }
 
 

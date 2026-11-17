@@ -100,7 +100,7 @@ make_subtab_views_official <- function(d, n_views, overlap, shuffle = TRUE) {
     from <- if (i == 0) 0 else i * s - n_overlap  # Same as in the official repo
     to   <- if (i == 0) {
       s + n_overlap  # First
-    } else if (i == n_views - 1L) {
+    } else if (i == n_views - 1L) {  # Added this so that no column is avoided.
       d  # Last
     } else {
       (i + 1) * s  # Rest
