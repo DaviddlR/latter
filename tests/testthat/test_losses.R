@@ -173,7 +173,7 @@ test_that("the whole pipeline gives a finite scalar and the gradient reaches the
   n_views <- 3
 
   x <- make_fake_batch(batch, num_cont, cat_dims)
-  views <- make_subtab_views_official(d = 5, n_views = n_views, overlap = 0.5)
+  views <- make_subtab_views(d = 5, n_views = n_views, overlap = 0.5)
   applied <- apply_view_mask(x, views, num_cont = num_cont, cat_dims = cat_dims)
 
   wrapper <- subtab_wrapper(num_cont = num_cont, cat_dims = cat_dims, hidden_dim = 16, head_hidden_dim = 8)

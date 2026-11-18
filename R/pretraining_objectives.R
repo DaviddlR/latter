@@ -31,7 +31,7 @@ subtab_fit = function(
 
   # Get subtab views
 
-  views <- make_subtab_views_official(d = length(x_train[1,]), n_views = 4, overlap = 0.5, shuffle = TRUE)
+  views <- make_subtab_views(d = length(x_train[1,]), n_views = 4, overlap = 0.5, shuffle = TRUE)
   print(views)
 
   applied <- apply_view_mask(x_train, views = views, num_cont = length(metadata_for_cat$num_cols), cat_dims = metadata_for_cat$cat_dims, add_indicator = TRUE)

@@ -1,47 +1,80 @@
-#' #' Divide a batch of "d" number of columns each row to "n_views" subsets
-#' #'
-#' #' @param d
-#' #' @param n_views
-#' #' @param overlap
-#' #' @param shuffle
-#' #'
-#' #' @returns
-#' #' @export
-#' #'
-#' #' @examples
-#' make_subtab_views__alternative <- function(d, n_views, overlap = 0.5, shuffle = TRUE) {
-#'   if (!is.numeric(d) || d < 1) {
-#'     stop("make_subtab_views: d must be a positive integer")
-#'   }
+#
+
+#' Split the columns of a dataset into SubTab views (same procedure as the official implementation)
 #'
-#'   if (!is.numeric(n_views) || n_views < 1 || n_views > d) {
-#'     stop("make_subtab_views: n_views must be an integer between 1 and d")
-#'   }
+#' A view is a bubset of columns. Neighbouring views could share columns (overlap).
 #'
-#'   if (!is.numeric(overlap) || overlap < 0 || overlap >= 1) {
-#'     stop("overlap must be in [0, 1)")
-#'   }
+#' Every view has exactly the same number of columns. This is required by the encoder, which is shared by all views. The last \code{d \%\% n_views} columns are not used by any view. A warning list them.
 #'
-#'   perm <- if (shuffle) sample.int(d) else seq_len(d)
+#' @param d \code{Integer}. Total number of columns after one-hot encoding
+#' @param n_views \code{Integer}. Number of views to create. It must be between 1 and \code{d}
+#' @param overlap \code{Numeric} in [0,1]. Fraction of the base width by which each view is widened.
+#' @param shuffle \code{Boolean}. If \code{TRUE}, the columns are randomly permuted. The official implementation does not do it.
+#' @param column_names \code{Character}. Optional. Names of the columns, only used to make the warning about discarded columns easier to read.
 #'
-#'   # View size and step between consecutive views, in "positions".
-#'   # size + (K - 1) * step = d, and size - step = overlap * size
-#'   size <- if (n_views == 1) d else d / (1 + (n_views - 1) * (1 - overlap))
-#'   step <- if (n_views == 1) 0 else (d - size) / (n_views - 1)
-#'
-#'   # Position i (1..d) is represented by its center i - 0.5. The tiny shift makes
-#'   # a center that falls exactly on a boundary belong to the later view
-#'   centers <- seq_len(d) - 0.5 + 1e-9
-#'
-#'   views <- matrix(FALSE, nrow = n_views, ncol = d)
-#'   for (k in seq_len(n_views)) {
-#'     from <- (k - 1) * step
-#'     inside <- centers >= from & centers < from + size  # logical [d], by position
-#'     views[k, perm[inside]] <- TRUE                     # position -> original column
-#'   }
-#'
-#'   return (views)
-#' }
+#' @returns A \code{logical} matrix of size [n_views, d]. \code{views[k, j] = TRUE} means that column \code{j} belongs to view \code{k}.
+#' @noRd
+make_subtab_views <- function(d, n_views, overlap = 0.5, shuffle = FALSE, column_names = NULL) {
+
+  # Validate input
+  if (!is.numeric(d) || length(d) != 1 || d < 1 || d != round(d)) {
+    stop("make_subtab_views: 'd' must be a positive integer")
+  }
+
+  if (!is.numeric(n_views) || length(n_views) != 1 || n_views < 1 || n_views > d || n_views != round(n_views)) {
+    stop("make_subtab_views: 'n_views' must be an integer between 1 and 'd'")
+  }
+
+  if (!is.numeric(overlap) || length(overlap) != 1 || overlap < 0 || overlap > 1) {
+    stop("make_subtab_views: 'overlap' must be in [0, 1]")
+  }
+
+  if (!is.null(column_names) && length(column_names) != d) {
+    stop("make_subtab_views: 'column_names' must have 'd' elements")
+  }
+
+
+  base_width <- d %/% n_views  # Integer division (python: //)
+  print(base_width)
+  n_overlap <- floor(overlap * base_width)  # Extra columns of each view that are shared with other views
+  print(n_overlap)
+
+  views_by_position <- matrix(FALSE, nrow = n_views, ncol = d)
+
+  for (i in seq_len(n_views) - 1L) {  # i = 0..K-1
+    # Slice [from, to) in 0-based indexes
+    from <- if (i == 0) 0 else i * base_width - n_overlap
+
+    to <- if (i == 0) {
+      base_width + n_overlap   # First view: its block + overlap on the right
+    } else {
+      (i + 1) * base_width     # The rest: until the end of their block
+    }
+
+    views_by_position[i + 1, (from + 1):min(to, d)] <- TRUE
+  }
+
+  # Shuffle if required
+  perm <- if (shuffle) sample.int(d) else seq_len(d)
+
+  views <- matrix(FALSE, nrow = n_views, ncol = d)
+  views[, perm] <- views_by_position  # Column perm[p] of 'views' receives column p of 'views_by_position'
+
+
+  # Columns that are not used
+  discarded <- which(colSums(views) == 0)
+
+  if (length(discarded) > 0) {
+    discarded_text <- if (is.null(column_names)) discarded else column_names[discarded]
+
+    warning("make_subtab_views: ", d, " columns cannot be split evenly into ", n_views, " views of the same width. ",
+            "As in the official implementation, the last ", length(discarded), " column(s) are not used by any view: ",
+            paste(discarded_text, collapse = ", "), call. = FALSE)
+  }
+
+  return(views)
+}
+
 
 
 
@@ -57,7 +90,7 @@
 #'
 #' @returns A \code{logical} matrix of size [n_views, d]. \code{views[k,j] = TRUE} means that column \code{j} belongs to view \code{k}.
 #' @noRd
-make_subtab_views_official <- function(d, n_views, overlap, shuffle = TRUE) {
+make_subtab_views_adapted <- function(d, n_views, overlap, shuffle = TRUE) {
   # TODO: hay que llamar a esto en qué momento? Antes de introducir ruido
 
   if (!is.numeric(d) || d < 1) {
