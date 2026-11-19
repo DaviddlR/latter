@@ -197,6 +197,87 @@ subtab_decoder <- torch::nn_module(
 
 
 
+
+subtab_wrapper <- torch::nn_module(
+  name = "subtab_wrapper",
+
+  initialize = function(num_cont, cat_dims = NULL, view_mode = c("crop", "mask"), view_width = NULL,
+                        hidden_dims = c(256, 256), shallow = TRUE, dropout = 0.0, use_indicator = TRUE,
+                        normalize = TRUE, p_norm = 2) {
+
+    view_mode <- match.arg(view_mode)
+    self$view_mode <- view_mode
+
+    # What the encoder receives depends on the view mode. What the decoder reconstructs is always the whole sample
+    if (view_mode == "crop") {
+
+      if (length(cat_dims) > 0) {
+        stop("subtab_wrapper: view_mode = 'crop' needs numerical columns only. One-hot encode the categorical variables first (e.g. recipes::step_dummy(one_hot = TRUE))")
+      }
+      if (is.null(view_width) || view_width < 1 || view_width > num_cont) {
+        stop("subtab_wrapper: with view_mode = 'crop', 'view_width' must be between 1 and the number of columns")
+      }
+
+      encoder_num_cont <- view_width  # The encoder only sees the columns of one view
+      encoder_cat_dims <- NULL
+      encoder_indicator <- FALSE
+
+    } else {
+
+      encoder_num_cont <- num_cont  # The encoder sees everything
+      encoder_cat_dims <- cat_dims
+      encoder_indicator <- use_indicator
+    }
+
+    # The same encoder (same weights) processes every view.
+    self$main_encoder <- subtab_encoder(num_cont = encoder_num_cont, cat_dims = encoder_cat_dims, hidden_dims = hidden_dims,
+                                        shallow = shallow, dropout = dropout, use_indicator = encoder_indicator)
+
+    latent_dim <- self$main_encoder$output_dim
+
+    # Projection head
+    self$projection_head <- subtab_projection_head(in_dim = latent_dim, normalize = normalize, p_norm = p_norm)
+
+    # Symmetric decoder. The hidden widths of the encoder in reverse order, without the latent one.
+    # Shallow: no hidden blocks
+    decoder_hidden_dims <- if (shallow) integer(0) else rev(hidden_dims[-length(hidden_dims)])
+
+    self$decoder <- subtab_decoder(in_dim = latent_dim, num_cont = num_cont, cat_dims = cat_dims,
+                                   hidden_dims = decoder_hidden_dims, dropout = dropout)
+  },
+
+  forward = function(x_input) {  # A list: the output of apply_view_mask(). See luz callback
+
+    # Latent representation of every view [n_views * batch size, latent_dim]. 'observed' is NULL in crop mode
+    z <- self$main_encoder(x_input$x, x_input$observed)
+
+    # Projection for the contrastive and distance losses
+    projection <- self$projection_head(z)
+
+    # Reconstruction of the whole original sample from each view
+    reconstruction <- self$decoder(z)
+
+    return(list(
+      projection = projection,
+      cont_estimation = reconstruction$cont_estimation,
+      cat_estimation = reconstruction$cat_estimation
+    ))
+  }
+)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #' Subtab encoder (MLP)
 #'
 #' It receives the masked views produced by \code{apply_view_mask}. Numerical columns pass as they are (optionally followed by an indicator

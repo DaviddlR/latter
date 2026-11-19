@@ -1,7 +1,177 @@
 
 
 
-# TODO: Export las funciones de pérdida ????
+
+
+
+
+#' Reconstruction loss of the original features (numerical and categorical)
+#'
+#' The squared errors are summed over the columns and averaged over the rows.
+#' This is, we compute the error of each column. Then, we divide this error by the number of rows.
+#' For instance, with two rows and three numerical columns with MSE = 1 in each one, we get a total error of 6.
+#' Then, we divide it by two (rows), getting an error of 3.
+#'
+#' @param cont_estimation
+#' @param cat_estimation
+#' @param x_target
+#' @param num_cont
+#' @param cat_dims
+#'
+#' @returns
+#' @export
+#'
+#' @examples
+subtab_feature_reconstruction_loss <- function(cont_estimation, cat_estimation, x_target, num_cont, cat_dims) {
+
+  num_cat <- length(cat_dims)
+  n_rows <- x_target$size(1)
+  reconstruction_loss <- torch::torch_tensor(0.0, device = x_target$device)
+
+  # Numerical features
+  if (num_cont > 0) {
+    if (is.null(cont_estimation)) stop("feature_reconstruction_loss: num_cont > 0 but no 'cont_estimation' output.")
+    x_cont_target <- x_target[, 1:num_cont, drop = FALSE]
+
+    # Sum of squared errors over all the elements divided by the number of rows
+    reconstruction_loss <- reconstruction_loss + torch::nnf_mse_loss(cont_estimation, x_cont_target, reduction = "sum") / n_rows
+  }
+
+  # Categorical features
+  if (num_cat > 0) {
+    if (is.null(cat_estimation)) stop("feature_reconstruction_loss: num_cat > 0 but no 'cat_estimation' output.")
+
+    for (i in seq_len(num_cat)) {
+      cat_target <- x_target[, num_cont + i]$to(dtype = torch::torch_long())  # Level of the column
+      # All views have B rows, so the sum over all rows / rows is the average of the per-view losses
+      reconstruction_loss <- reconstruction_loss + torch::nnf_cross_entropy(cat_estimation[[i]], cat_target)
+    }
+  }
+
+  return(reconstruction_loss)
+}
+
+
+
+
+subtab_contrastive_loss <- function(z_i, z_j, temperature = 0.1, cosine_similarity = FALSE) {
+
+  batch_size <- z_i$size(1)
+  z <- torch::torch_cat(list(z_i, z_j), dim = 1)  # [2B, h]: first half = view i, second half = view j
+
+  if (cosine_similarity) z <- torch::nnf_normalize(z, p = 2, dim = 2)  # Dot product of unit vectors = cosine
+
+  # Similarity matrix [2B, 2B], scaled by the temperature
+  logits <- z$matmul(z$t()) / temperature
+
+  # A sample is not compared with itself: -Inf makes its probability exactly 0 in the softmax
+  self_mask <- torch::torch_eye(2 * batch_size, device = z$device)$to(dtype = torch::torch_bool())
+  logits <- logits$masked_fill(self_mask, -Inf)
+
+  # Positive of row r: r + B in the first half, r - B in the second half
+  partner <- torch::torch_tensor(c((batch_size + 1):(2 * batch_size), 1:batch_size), dtype = torch::torch_long(), device = z$device)
+
+  # Cross-entropy with the partner as the correct class = -log(exp(pos) / sum(exp(all but itself))). Mean over the 2B rows
+  torch::nnf_cross_entropy(logits, partner)
+}
+
+
+
+subtab_loss <- torch::nn_module(
+  name = "subtab_loss",
+
+  initialize = function(num_cont, cat_dims = NULL, use_contrastive_loss = TRUE, use_distance_loss = TRUE,
+                        temperature = 0.1, cosine_similarity = FALSE) {
+
+    self$num_cont <- num_cont
+    self$cat_dims <- cat_dims
+    self$use_contrastive_loss <- use_contrastive_loss
+    self$use_distance_loss <- use_distance_loss
+    self$temperature <- temperature
+    self$cosine_similarity <- cosine_similarity
+
+    self$components <- NULL  # Filled in every forward
+  },
+
+  forward = function(input, target) {
+
+    x_original <- target$x          # [B, d] clean batch (before views and noise)
+    n_views <- target$n_views
+    batch_size <- x_original$size(1)
+
+    # 1. Reconstruction (one term per view, then average) ----
+
+    # The rows of the output are ordered view by view [view 1 (B rows), view 2 (B rows), ...].
+    # So the target is the original batch repeated n_views times in that same order.
+    x_target <- torch::torch_cat(rep(list(x_original), n_views), dim = 1)  # [n_views * B, d]
+
+
+    reconstruction_loss <- subtab_feature_reconstruction_loss(
+      cont_estimation = input$cont_estimation,
+      cat_estimation = input$cat_estimation,
+      x_target = x_target,
+      num_cont = self$num_cont,
+      cat_dims = self$cat_dims
+    )
+
+    total_loss <- reconstruction_loss
+    contrastive_loss <- NULL
+    distance_loss <- NULL
+
+    # 2. Contrastive and distance (over all pairs of views) ----
+    if (self$use_contrastive_loss || self$use_distance_loss) {
+
+      if (n_views < 2) {
+        stop("subtab_loss: contrastive and distance losses need at least 2 views. Use n_views >= 2 or disable both losses.")
+      }
+
+      # [n_views * B, h] -> [n_views, B, h]. It works because the rows are ordered view by view
+      z <- input$projection$reshape(c(n_views, batch_size, -1))
+
+      contrastive_sum <- torch::torch_tensor(0.0, device = x_original$device)
+      distance_sum <- torch::torch_tensor(0.0, device = x_original$device)
+
+      for (a in 1:(n_views - 1)) {
+        for (b in (a + 1):n_views) {  # Every pair (a, b) with a < b: n_views * (n_views - 1) / 2 pairs
+
+          z_a <- z[a, , ]  # [B, h]
+          z_b <- z[b, , ]
+
+          if (self$use_contrastive_loss) {
+            contrastive_sum <- contrastive_sum + subtab_contrastive_loss(z_a, z_b, self$temperature, self$cosine_similarity)
+          }
+
+          if (self$use_distance_loss) {
+            # Official getMSEloss(zi, zj): sum of squared differences over everything / number of samples
+            distance_sum <- distance_sum + (z_a - z_b)$pow(2)$sum() / batch_size
+          }
+        }
+      }
+
+      n_pairs <- n_views * (n_views - 1) / 2
+
+      if (self$use_contrastive_loss) {
+        contrastive_loss <- contrastive_sum / n_pairs
+        total_loss <- total_loss + contrastive_loss
+      }
+
+      if (self$use_distance_loss) {
+        distance_loss <- distance_sum / n_pairs
+        total_loss <- total_loss + distance_loss
+      }
+    }
+
+    # Detached terms for logging (the official implementation records them in every batch). A disabled term is NULL
+    self$components <- list(
+      reconstruction = reconstruction_loss$detach(),
+      contrastive = if (is.null(contrastive_loss)) NULL else contrastive_loss$detach(),
+      distance = if (is.null(distance_loss)) NULL else distance_loss$detach()
+    )
+
+    return(total_loss)
+  }
+)
+
 
 
 
@@ -109,35 +279,6 @@ subtab_loss <- torch::nn_module(
 
 
 
-feature_reconstruction_loss <- function(predicted_num_features, predicted_cat_features, x_target, num_cont, num_cat) {
-
-  reconstruction_loss <- torch::torch_tensor(0.0, device = x_target$device)
-
-  # Numerical variables
-  if (num_cont > 0) {
-    if (is.null(predicted_num_features)) stop("feature_reconstruction_loss: num_cont > 0 but no 'predicted_num_features' output.")
-    x_cont_target <- x_target[, 1:num_cont, drop = FALSE]
-    num_loss <- torch::nnf_mse_loss(predicted_num_features, x_cont_target)
-    reconstruction_loss <- reconstruction_loss + num_loss
-  }
-
-  # Categorical variables
-  if (num_cat > 0) {
-    if (is.null(predicted_cat_features)) stop("feature_reconstruction_loss: num_cat > 0 but no 'predicted_cat_features' output.")
-    cat_loss <- torch::torch_tensor(0.0, device = x_target$device)
-
-    for (i in seq_len(num_cat)) {
-      cat_target <- x_target[, num_cont + i]$to(dtype = torch::torch_long())  # Level of the column (1-based)
-      logits <- predicted_cat_features[[i]]
-
-      cat_loss <- cat_loss + torch::nnf_cross_entropy(logits, cat_target)
-    }
-
-    reconstruction_loss <- reconstruction_loss + cat_loss
-  }
-
-  return(reconstruction_loss)
-}
 
 
 
@@ -183,6 +324,41 @@ binning_loss <- torch::nn_module(
 )
 
 
+
+
+#' The squared errors are summed over the columns and averaged over all features.
+#' This is, we compute the error of each column. Then, we divide this error by the number of columns and rows.
+#' For instance, with two rows and three numerical columns with MSE = 1 in each one, we get a total error of 6.
+#' Then, we divide it by six (two rows and three columns), getting an error of 1.
+vime_feature_reconstruction_loss <- function(predicted_num_features, predicted_cat_features, x_target, num_cont, num_cat) {
+
+  reconstruction_loss <- torch::torch_tensor(0.0, device = x_target$device)
+
+  # Numerical variables
+  if (num_cont > 0) {
+    if (is.null(predicted_num_features)) stop("feature_reconstruction_loss: num_cont > 0 but no 'predicted_num_features' output.")
+    x_cont_target <- x_target[, 1:num_cont, drop = FALSE]
+    num_loss <- torch::nnf_mse_loss(predicted_num_features, x_cont_target)
+    reconstruction_loss <- reconstruction_loss + num_loss
+  }
+
+  # Categorical variables
+  if (num_cat > 0) {
+    if (is.null(predicted_cat_features)) stop("feature_reconstruction_loss: num_cat > 0 but no 'predicted_cat_features' output.")
+    cat_loss <- torch::torch_tensor(0.0, device = x_target$device)
+
+    for (i in seq_len(num_cat)) {
+      cat_target <- x_target[, num_cont + i]$to(dtype = torch::torch_long())  # Level of the column (1-based)
+      logits <- predicted_cat_features[[i]]
+
+      cat_loss <- cat_loss + torch::nnf_cross_entropy(logits, cat_target)
+    }
+
+    reconstruction_loss <- reconstruction_loss + cat_loss
+  }
+
+  return(reconstruction_loss)
+}
 
 
 
@@ -231,7 +407,7 @@ vime_loss <- torch::nn_module(
     # Reconstruction loss
     # "Feature vector estimator is trained by minimizing the reconstruction loss" (mean_square_error)
 
-    reconstruction_loss <- feature_reconstruction_loss(predicted_num_features, predicted_cat_features, x_original, self$num_cont, self$num_cat)
+    reconstruction_loss <- vime_feature_reconstruction_loss(predicted_num_features, predicted_cat_features, x_original, self$num_cont, self$num_cat)
 
 
 
