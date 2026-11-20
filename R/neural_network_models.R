@@ -45,35 +45,14 @@ classifier_network <- torch::nn_module(
 subtab_encoder <- torch::nn_module(
   name = "subtab_encoder",
 
-  initialize = function(num_cont, cat_dims = NULL, hidden_dims = c(256, 256), shallow = TRUE, dropout = 0.0, use_indicator = TRUE) {
+  initialize = function(num_cont, hidden_dims = c(256, 256), shallow = TRUE, dropout = 0.0) {
 
     if (length(hidden_dims) < 1 || any(hidden_dims < 1)) stop("subtab_encoder: 'hidden_dims' must have positive widths")
 
     self$num_cont <- num_cont
-    self$cat_dims <- cat_dims
-    self$num_cat <- length(cat_dims)
-
-    # Without numerical columns there is nothing to indicate, so the indicator is disabled
-    self$use_indicator <- use_indicator && num_cont > 0
-
-    # Embeddings for categorical columns (only used in view_mode = "mask")
-    if (self$num_cat > 0) {
-      self$emb_dims <- sapply(cat_dims, function(x) min(50, ceiling((x + 1) / 2)))  # How many dimensions each embedding
-
-      self$embeddings <- torch::nn_module_list(  # For each categorical, an embedding layer
-        lapply(seq_along(cat_dims), function(i) {
-          torch::nn_embedding(
-            num_embeddings = cat_dims[i] + 2,  # +1 unknown level, +1 mask token (apply_view_mask uses cat_dims + 2)
-            embedding_dim = self$emb_dims[i]
-          )
-        })
-      )
-    }
 
     # Input size of the MLP. numerical + (indicator) + embeddings
     total_in_dim <- num_cont
-    if (self$use_indicator) total_in_dim <- total_in_dim + num_cont
-    if (self$num_cat > 0) total_in_dim <- total_in_dim + sum(self$emb_dims)
 
     self$input_dim <- total_in_dim
 
@@ -99,30 +78,16 @@ subtab_encoder <- torch::nn_module(
     self$encoder <- do.call(torch::nn_sequential, layers)
   },
 
-  # x: [rows, num_cont + num_cat]. observed: [rows, num_cont] with 1 = observed, 0 = masked (only with use_indicator = TRUE)
-  forward = function(x, observed = NULL) {
+  # x: [rows, num_cont]. observed: [rows, num_cont] with 1 = observed, 0 = masked (only with use_indicator = TRUE)
+  forward = function(x) {
 
-    parts <- list()  # Pieces that will be concatenated, in this order: numerical, indicator, embeddings
+    parts <- list()  # Pieces that will be concatenated
 
     # Numerical columns (first ones)
     if (self$num_cont > 0) {
       parts[[length(parts) + 1]] <- x[, 1:self$num_cont, drop = FALSE]
-
-      if (self$use_indicator) {
-        if (is.null(observed)) {
-          stop("subtab_encoder: it was built with use_indicator = TRUE, so 'observed' (from apply_view_mask) is required")
-        }
-        parts[[length(parts) + 1]] <- observed
-      }
-    }
-
-    # Categorical columns (last ones): integer -> embedding
-    if (self$num_cat > 0) {
-      x_cat <- x[, (self$num_cont + 1):x$size(2), drop = FALSE]$to(dtype = torch::torch_long())
-
-      for (i in seq_len(self$num_cat)) {
-        parts[[length(parts) + 1]] <- self$embeddings[[i]](x_cat[, i])
-      }
+    } else {
+      stop("subtab_encoder: there are not numerical columns available.")
     }
 
     x_prepared <- torch::torch_cat(parts, dim = 2)
@@ -185,53 +150,57 @@ subtab_decoder <- torch::nn_module(
     # nn_identity() returns its input unchanged (case without hidden blocks)
     self$body <- if (length(layers) > 0) do.call(torch::nn_sequential, layers) else torch::nn_identity()
 
-    # Final Linear layer(s). The logits of a categorical have cat_dims[i] + 2 classes (unknown level and mask token included)
+    # Final Linear layer(s).
     self$feature_estimator <- vime_feature_estimator(current_dim, num_cont, cat_dims)
   },
 
   forward = function(z) {
-    self$feature_estimator(self$body(z))  # list(cont_estimation, cat_estimation)
+    feature_estimation <- self$feature_estimator(self$body(z))  # list(cont_estimation, cat_estimation = NULL)
+
+    return (feature_estimation$cont_estimation)
   }
 )
 
 
 
 
-
+#' Subtab wrapper torch module containing the encoder, the projection head and the decoder
+#'
+#' Each view is the subset of columns
+#'
+#' @param view_width
+#' @param hidden_dims
+#' @param shallow
+#' @param dropout
+#' @param normalize
+#' @param p_norm
+#'
+#' @returns
+#' @export
+#'
+#' @examples
 subtab_wrapper <- torch::nn_module(
   name = "subtab_wrapper",
 
-  initialize = function(num_cont, cat_dims = NULL, view_mode = c("crop", "mask"), view_width = NULL,
-                        hidden_dims = c(256, 256), shallow = TRUE, dropout = 0.0, use_indicator = TRUE,
+
+  initialize = function(view_width = NULL,
+                        hidden_dims = c(256, 256), shallow = TRUE, dropout = 0.0,
                         normalize = TRUE, p_norm = 2) {
 
-    view_mode <- match.arg(view_mode)
-    self$view_mode <- view_mode
 
     # What the encoder receives depends on the view mode. What the decoder reconstructs is always the whole sample
-    if (view_mode == "crop") {
-
-      if (length(cat_dims) > 0) {
-        stop("subtab_wrapper: view_mode = 'crop' needs numerical columns only. One-hot encode the categorical variables first (e.g. recipes::step_dummy(one_hot = TRUE))")
-      }
-      if (is.null(view_width) || view_width < 1 || view_width > num_cont) {
-        stop("subtab_wrapper: with view_mode = 'crop', 'view_width' must be between 1 and the number of columns")
-      }
-
-      encoder_num_cont <- view_width  # The encoder only sees the columns of one view
-      encoder_cat_dims <- NULL
-      encoder_indicator <- FALSE
-
-    } else {
-
-      encoder_num_cont <- num_cont  # The encoder sees everything
-      encoder_cat_dims <- cat_dims
-      encoder_indicator <- use_indicator
+    # if (length(cat_dims) > 0) {
+    #   stop("subtab_wrapper: needs numerical columns only. One-hot encode the categorical variables first (e.g. recipes::step_dummy(one_hot = TRUE))")
+    # }
+    if (is.null(view_width) || view_width < 1 || view_width > num_cont) {
+      stop("subtab_wrapper: 'view_width' must be between 1 and the number of columns")
     }
 
+    num_cont <- view_width  # The encoder only sees the columns of one view
+
     # The same encoder (same weights) processes every view.
-    self$main_encoder <- subtab_encoder(num_cont = encoder_num_cont, cat_dims = encoder_cat_dims, hidden_dims = hidden_dims,
-                                        shallow = shallow, dropout = dropout, use_indicator = encoder_indicator)
+    self$main_encoder <- subtab_encoder(num_cont = view_width, hidden_dims = hidden_dims,
+                                        shallow = shallow, dropout = dropout)
 
     latent_dim <- self$main_encoder$output_dim
 
@@ -242,14 +211,14 @@ subtab_wrapper <- torch::nn_module(
     # Shallow: no hidden blocks
     decoder_hidden_dims <- if (shallow) integer(0) else rev(hidden_dims[-length(hidden_dims)])
 
-    self$decoder <- subtab_decoder(in_dim = latent_dim, num_cont = num_cont, cat_dims = cat_dims,
+    self$decoder <- subtab_decoder(in_dim = latent_dim, num_cont = view_width, cat_dims = cat_dims,
                                    hidden_dims = decoder_hidden_dims, dropout = dropout)
   },
 
   forward = function(x_input) {  # A list: the output of apply_view_mask(). See luz callback
 
     # Latent representation of every view [n_views * batch size, latent_dim]. 'observed' is NULL in crop mode
-    z <- self$main_encoder(x_input$x, x_input$observed)
+    z <- self$main_encoder(x_input$x)
 
     # Projection for the contrastive and distance losses
     projection <- self$projection_head(z)

@@ -3,6 +3,8 @@
 
 
 
+# TODO: arreglar esta función de pérdida para que no acepte variables categóricas.
+
 
 
 #' Reconstruction loss of the original features (numerical and categorical)
@@ -211,7 +213,7 @@ subtab_loss <- torch::nn_module(
 
 
 
-subtab_loss <- torch::nn_module(
+subtab_loss_remove <- torch::nn_module(
   name = "subtab_loss",
 
   initialize = function(num_cont, cat_dims, temperature = 0.5,
