@@ -7,21 +7,19 @@
 
 #' Reconstruction loss of the original features (numerical and categorical)
 #'
-#' The squared errors are summed over the columns and averaged over the rows.
+#' For numerical columns, the squared errors are summed over the columns and averaged over the rows.
 #' This is, we compute the error of each column. Then, we divide this error by the number of rows.
 #' For instance, with two rows and three numerical columns with MSE = 1 in each one, we get a total error of 6.
 #' Then, we divide it by two (rows), getting an error of 3.
 #'
-#' @param cont_estimation
-#' @param cat_estimation
-#' @param x_target
-#' @param num_cont
-#' @param cat_dims
+#' @param cont_estimation Predicted numerical values. NULL when num_cont = 0.
+#' @param cat_estimation Predicted categorical values. NULL when num_cat = 0.
+#' @param x_target Original features. Numerical first, categorical last.
+#' @param num_cont Number of numerical columns.
+#' @param cat_dims Number of levels per categorical column
 #'
-#' @returns
-#' @export
-#'
-#' @examples
+#' @returns A scalar tensor (reconstruction loss)
+#' @noRd
 subtab_feature_reconstruction_loss <- function(cont_estimation, cat_estimation, x_target, num_cont, cat_dims) {
 
   num_cat <- length(cat_dims)
@@ -54,12 +52,22 @@ subtab_feature_reconstruction_loss <- function(cont_estimation, cat_estimation, 
 
 
 
-subtab_contrastive_loss <- function(z_i, z_j, temperature = 0.1, cosine_similarity = FALSE) {
+#' Contrastive loss between the projections of two views.
+#'
+#' For each row, the positive is the same sample in other view. The negatives are the remaining rows in the batch. The loss is the mean over the rows.
+#' Samples at the same rows of two subsets can be considered as positive pairs, while remaining lrows in the subsets can be considered as negatives to those samples.
+#'
+#'
+#' @param z_i Projections of the first view.
+#' @param z_j Projections of the second view.
+#' @param temperature Temperature parameter to balance
+#'
+#' @returns A scalar tensor (contrastive loss).
+#' @noRd
+subtab_contrastive_loss <- function(z_i, z_j, temperature = 0.1) {
 
   batch_size <- z_i$size(1)
   z <- torch::torch_cat(list(z_i, z_j), dim = 1)  # [2B, h]: first half = view i, second half = view j
-
-  if (cosine_similarity) z <- torch::nnf_normalize(z, p = 2, dim = 2)  # Dot product of unit vectors = cosine
 
   # Similarity matrix [2B, 2B], scaled by the temperature
   logits <- z$matmul(z$t()) / temperature
@@ -77,11 +85,38 @@ subtab_contrastive_loss <- function(z_i, z_j, temperature = 0.1, cosine_similari
 
 
 
+#' Loss function for the SubTab algorithm.
+#'
+#' Sum of up to three terms:
+#'
+#' \itemize{
+#'  \item Reconstruction loss. Each view must reconstruct the whole original sample. Average over views
+#'  \item Contrastive loss (optional). NT-Xent between the projections of every pair of views. Average over pairs.
+#'  \item Distance loss (optional). Squared distance error between the projections of every pair of views. Average over pairs.
+#' }
+#'
+#' Its forward method takes:
+#'
+#' \itemize{
+#'  \item \code{Input}. Output of \code{subtab_wrapper}
+#'  \item \code{Target}. List with \code{x} (original, clean batch) and \code{n_views}
+#'  \item Contrastive loss (optional). NT-Xent between the projections of every pair of views. Average over pairs.
+#'  \item Distance loss (optional). Squared distance error between the projections of every pair of views. Average over pairs.
+#' }
+#'
+#' @param num_cont \code{Integer}. Number of numerical columns that the decoder reconstructs
+#' @param cat_dims Number of levels per categorical column
+#' @param use_contrastive_loss \code{Boolean}. Add the contrastive loss. Defaults \code{TRUE}.
+#' @param use_distance_loss Add the distance loss. Default \code{TRUE}
+#' @param temperature Temperature of the contrastive loss. Default 0.1
+#'
+#' @returns A 'torch::nn_module' representing the SubTab loss function.
+#' @noRd
 subtab_loss <- torch::nn_module(
   name = "subtab_loss",
 
   initialize = function(num_cont, cat_dims = NULL, use_contrastive_loss = TRUE, use_distance_loss = TRUE,
-                        temperature = 0.1, cosine_similarity = FALSE) {
+                        temperature = 0.1) {
 
     self$num_cont <- num_cont
     self$cat_dims <- cat_dims
