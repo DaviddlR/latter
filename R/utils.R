@@ -230,6 +230,108 @@ corrupt_batch = function(x, corruption_rate) {
 
 
 
+#' Detect the binary columns of the training data
+#'
+#' A column is binary if it has at most two different values. It does not matter which values they are, so a one-hot column
+#' is detected even if it was standardized afterwards (it still has two values). Constant columns count as binary.
+#'
+#' @param x A matrix (or data frame) of numerical columns.
+#'
+#' @returns A \code{logical} vector with one element per column. \code{TRUE} = binary.
+#' @noRd
+subtab_detect_binary_columns <- function(x) {
+
+  x <- as.matrix(x)
+
+  vapply(seq_len(ncol(x)), function(j) {
+    values <- x[, j]
+    length(unique(values[!is.na(values)])) <= 2
+  }, logical(1))
+}
+
+
+#' Which columns of each view can receive noise
+#'
+#' @param view_indices Output of \code{subtab_view_indices()}, [n_views, view_width].
+#' @param binary_columns Output of \code{subtab_detect_binary_columns()}, one element per column of the data.
+#' @param noise_on_binary \code{Boolean}. If \code{TRUE}, every column can be corrupted (official behaviour) and the result is \code{NULL}.
+#'   If \code{FALSE}, binary columns are excluded.
+#' @param device Device of the tensor.
+#'
+#' @returns \code{NULL} (everything can be corrupted) or a boolean \code{torch_tensor} [n_views, view_width]. \code{TRUE} = can be corrupted.
+#' @noRd
+subtab_noise_eligibility <- function(view_indices, binary_columns, noise_on_binary = FALSE, device = "cpu") {
+
+  if (noise_on_binary) return(NULL)
+
+  eligible <- matrix(!binary_columns[view_indices], nrow = nrow(view_indices))
+
+  torch::torch_tensor(eligible, dtype = torch::torch_bool(), device = device)
+}
+
+
+
+
+#' Add noise to the views
+#'
+#' @param x_views A \code{torch_tensor} [n_views * B, view_width] with the cropped views (output of \code{subtab_crop_views()}).
+#' @param n_views Number of views.
+#' @param noise_type \code{Character}. Available options are \code{["swap_noise", "gaussian_noise", "zero_out"]}.
+#' @param masking_ratio \code{Numeric} in [0, 1]. Probability of corrupting each element.
+#' @param noise_level \code{Numeric}. Standard deviation of the Gaussian noise. Only for \code{"gaussian_noise"}.
+#' @param eligible \code{NULL} or a boolean \code{torch_tensor} [n_views, view_width] (output of \code{subtab_noise_eligibility()}).
+#'   Elements that are not eligible are never corrupted.
+#'
+#' @returns A \code{torch_tensor} [n_views * B, view_width]. The input is not modified.
+#' @noRd
+subtab_add_noise <- function(x_views, n_views, noise_type = c("swap_noise", "gaussian_noise", "zero_out"),
+                             masking_ratio = 0.3, noise_level = 0.1, eligible = NULL) {
+
+  noise_type <- match.arg(noise_type)
+
+  # Validation
+  if (!is.numeric(masking_ratio) || length(masking_ratio) != 1 || masking_ratio < 0 || masking_ratio > 1) {
+    stop("subtab_add_noise: 'masking_ratio' must be in [0, 1]")
+  }
+  if (!is.numeric(noise_level) || length(noise_level) != 1 || noise_level < 0) {
+    stop("subtab_add_noise: 'noise_level' must be >= 0")
+  }
+
+  batch_size <- x_views$size(1) %/% n_views
+  view_width <- x_views$size(2)
+
+  # [n_views * B, w] -> [n_views, B, w]. It works because the rows are ordered view by view
+  x <- x_views$reshape(c(n_views, batch_size, view_width))
+
+  # Value that would replace each element
+  replacement <- switch(
+    noise_type,
+
+    swap_noise = {
+      permutation <- torch::torch_argsort(torch::torch_rand(n_views, batch_size, view_width, device = x$device), dim = 2)
+      torch::torch_gather(x, dim = 2, index = permutation)  # out[k, b, j] = x[k, permutation[k, b, j], j]
+    },
+
+    gaussian_noise = x + torch::torch_randn_like(x) * noise_level,
+
+    zero_out = torch::torch_zeros_like(x)
+  )
+
+  # Official: mask = binomial(1, p_m, x_bar.shape). One independent Bernoulli for every element
+  corrupt <- torch::torch_rand_like(x) < masking_ratio
+
+  # Columns that must not be corrupted. eligible [n_views, w] -> [n_views, 1, w] to broadcast over the rows
+  if (!is.null(eligible)) corrupt <- corrupt & eligible$unsqueeze(2)
+
+  noisy <- torch::torch_where(corrupt, replacement, x)
+
+  noisy$reshape(c(n_views * batch_size, view_width))
+}
+
+
+
+
+
 # Get information about categorical variables for transforming them to integers.
 # If metadata is null, the method collect it from the training set. Else, it uses
 # the metadata to transform new data (validation and test)

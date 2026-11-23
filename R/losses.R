@@ -1,12 +1,6 @@
 
 
 
-
-
-# TODO: arreglar esta función de pérdida para que no acepte variables categóricas.
-
-
-
 #' Reconstruction loss of the original features (numerical and categorical)
 #'
 #' For numerical columns, the squared errors are summed over the columns and averaged over the rows.
@@ -15,16 +9,13 @@
 #' Then, we divide it by two (rows), getting an error of 3.
 #'
 #' @param cont_estimation Predicted numerical values. NULL when num_cont = 0.
-#' @param cat_estimation Predicted categorical values. NULL when num_cat = 0.
 #' @param x_target Original features. Numerical first, categorical last.
 #' @param num_cont Number of numerical columns.
-#' @param cat_dims Number of levels per categorical column
 #'
 #' @returns A scalar tensor (reconstruction loss)
 #' @noRd
-subtab_feature_reconstruction_loss <- function(cont_estimation, cat_estimation, x_target, num_cont, cat_dims) {
+subtab_feature_reconstruction_loss <- function(cont_estimation, x_target, num_cont) {
 
-  num_cat <- length(cat_dims)
   n_rows <- x_target$size(1)
   reconstruction_loss <- torch::torch_tensor(0.0, device = x_target$device)
 
@@ -38,15 +29,15 @@ subtab_feature_reconstruction_loss <- function(cont_estimation, cat_estimation, 
   }
 
   # Categorical features
-  if (num_cat > 0) {
-    if (is.null(cat_estimation)) stop("feature_reconstruction_loss: num_cat > 0 but no 'cat_estimation' output.")
-
-    for (i in seq_len(num_cat)) {
-      cat_target <- x_target[, num_cont + i]$to(dtype = torch::torch_long())  # Level of the column
-      # All views have B rows, so the sum over all rows / rows is the average of the per-view losses
-      reconstruction_loss <- reconstruction_loss + torch::nnf_cross_entropy(cat_estimation[[i]], cat_target)
-    }
-  }
+  # if (num_cat > 0) {
+  #   if (is.null(cat_estimation)) stop("feature_reconstruction_loss: num_cat > 0 but no 'cat_estimation' output.")
+  #
+  #   for (i in seq_len(num_cat)) {
+  #     cat_target <- x_target[, num_cont + i]$to(dtype = torch::torch_long())  # Level of the column
+  #     # All views have B rows, so the sum over all rows / rows is the average of the per-view losses
+  #     reconstruction_loss <- reconstruction_loss + torch::nnf_cross_entropy(cat_estimation[[i]], cat_target)
+  #   }
+  # }
 
   return(reconstruction_loss)
 }
@@ -117,15 +108,13 @@ subtab_contrastive_loss <- function(z_i, z_j, temperature = 0.1) {
 subtab_loss <- torch::nn_module(
   name = "subtab_loss",
 
-  initialize = function(num_cont, cat_dims = NULL, use_contrastive_loss = TRUE, use_distance_loss = TRUE,
+  initialize = function(num_cont, use_contrastive_loss = TRUE, use_distance_loss = TRUE,
                         temperature = 0.1) {
 
     self$num_cont <- num_cont
-    self$cat_dims <- cat_dims
     self$use_contrastive_loss <- use_contrastive_loss
     self$use_distance_loss <- use_distance_loss
     self$temperature <- temperature
-    self$cosine_similarity <- cosine_similarity
 
     self$components <- NULL  # Filled in every forward
   },
@@ -145,10 +134,8 @@ subtab_loss <- torch::nn_module(
 
     reconstruction_loss <- subtab_feature_reconstruction_loss(
       cont_estimation = input$cont_estimation,
-      cat_estimation = input$cat_estimation,
       x_target = x_target,
-      num_cont = self$num_cont,
-      cat_dims = self$cat_dims
+      num_cont = self$num_cont
     )
 
     total_loss <- reconstruction_loss
@@ -175,7 +162,7 @@ subtab_loss <- torch::nn_module(
           z_b <- z[b, , ]
 
           if (self$use_contrastive_loss) {
-            contrastive_sum <- contrastive_sum + subtab_contrastive_loss(z_a, z_b, self$temperature, self$cosine_similarity)
+            contrastive_sum <- contrastive_sum + subtab_contrastive_loss(z_a, z_b, self$temperature)
           }
 
           if (self$use_distance_loss) {

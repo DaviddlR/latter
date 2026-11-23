@@ -176,9 +176,7 @@ subtab_decoder <- torch::nn_module(
 #' @param p_norm
 #'
 #' @returns
-#' @export
-#'
-#' @examples
+#' @noRd
 subtab_wrapper <- torch::nn_module(
   name = "subtab_wrapper",
 
@@ -228,8 +226,7 @@ subtab_wrapper <- torch::nn_module(
 
     return(list(
       projection = projection,
-      cont_estimation = reconstruction$cont_estimation,
-      cat_estimation = reconstruction$cat_estimation
+      cont_estimation = reconstruction
     ))
   }
 )

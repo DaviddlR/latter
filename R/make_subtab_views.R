@@ -1,5 +1,20 @@
 #
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #' Split the columns of a dataset into SubTab views (same procedure as the official implementation)
 #'
 #' A view is a bubset of columns. Neighbouring views could share columns (overlap).
@@ -73,6 +88,44 @@ make_subtab_views <- function(d, n_views, overlap = 0.5, shuffle = FALSE, column
   }
 
   return(views)
+}
+
+
+
+
+#' Column indexes of each view
+#'
+#' @param views A \code{logical} matrix [n_views, d] (output of \code{make_subtab_views()}).
+#'
+#' @returns An \code{integer} matrix [n_views, view_width]. Row k has the columns of view k.
+#' @noRd
+subtab_view_indices <- function(views) {
+  if (length(unique(rowSums(views))) != 1) {
+    stop("subtab_view_indices: all the views must have the same number of columns (the encoder is shared)")
+  }
+
+  do.call(rbind, lapply(seq_len(nrow(views)), function(k) which(views[k, ])))
+}
+
+
+
+
+#' Crop the data into its views
+#'
+#' Each view is the subset of columns of the sample. The views are stacked one after the other, so the output has n_views * B rows ordered view by view:
+#' [view 1 (B rows), view 2 (B rows), ...].
+#'
+#' @param x A \code{torch_tensor} with the clean batch.
+#' @param view_indices Output of \code{subtab_view_indices()}
+#'
+#' @returns A \code{torch_tensor} [n_views * B, view_width].
+#' @noRd
+subtab_crop_views <- function(x, view_indices) {
+  if (!inherits(x, "torch_tensor")) x <- torch::torch_tensor(as.matrix(x), dtype = torch::torch_float32())
+
+  views_list <- lapply(seq_len(nrow(view_indices)), function(k) x[, view_indices[k, ], drop = FALSE])
+
+  torch::torch_cat(views_list, dim = 1)
 }
 
 
@@ -158,7 +211,7 @@ make_subtab_views_adapted <- function(d, n_views, overlap, shuffle = TRUE) {
 }
 
 
-apply_view_mask <- function(x, views, num_cont, cat_dims = NULL, add_indicator = TRUE) {
+apply_view_mask_remove <- function(x, views, num_cont, cat_dims = NULL, add_indicator = TRUE) {
 
   x <- torch::torch_tensor(as.matrix(x), dtype = torch::torch_float32())  # TODO borrar esto en un futuro será tensor de base creo
 
