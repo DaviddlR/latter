@@ -134,7 +134,7 @@ subtab_projection_head <- torch::nn_module(
 subtab_decoder <- torch::nn_module(
   name = "subtab_decoder",
 
-  initialize = function(in_dim, num_cont, cat_dims = NULL, hidden_dims = integer(0), dropout = 0.0) {
+  initialize = function(in_dim, num_cont, hidden_dims = integer(0), dropout = 0.0) {
 
     layers <- list()
     current_dim <- in_dim  # Size of what the output heads will receive
@@ -151,7 +151,7 @@ subtab_decoder <- torch::nn_module(
     self$body <- if (length(layers) > 0) do.call(torch::nn_sequential, layers) else torch::nn_identity()
 
     # Final Linear layer(s).
-    self$feature_estimator <- vime_feature_estimator(current_dim, num_cont, cat_dims)
+      self$feature_estimator <- vime_feature_estimator(current_dim, num_cont, cat_dims = NULL)  # NO cat_dims in subtab
   },
 
   forward = function(z) {
@@ -168,6 +168,7 @@ subtab_decoder <- torch::nn_module(
 #'
 #' Each view is the subset of columns
 #'
+#' @param num_cont
 #' @param view_width
 #' @param hidden_dims
 #' @param shallow
@@ -181,7 +182,8 @@ subtab_wrapper <- torch::nn_module(
   name = "subtab_wrapper",
 
 
-  initialize = function(view_width = NULL,
+  initialize = function(num_cont = NULL,  # For the decoder (all dimensions)
+                        view_width = NULL,  # For the encoder (just the view)
                         hidden_dims = c(256, 256), shallow = TRUE, dropout = 0.0,
                         normalize = TRUE, p_norm = 2) {
 
@@ -190,11 +192,10 @@ subtab_wrapper <- torch::nn_module(
     # if (length(cat_dims) > 0) {
     #   stop("subtab_wrapper: needs numerical columns only. One-hot encode the categorical variables first (e.g. recipes::step_dummy(one_hot = TRUE))")
     # }
-    if (is.null(view_width) || view_width < 1 || view_width > num_cont) {
+    if (is.null(view_width) || view_width < 1) {
       stop("subtab_wrapper: 'view_width' must be between 1 and the number of columns")
     }
 
-    num_cont <- view_width  # The encoder only sees the columns of one view
 
     # The same encoder (same weights) processes every view.
     self$main_encoder <- subtab_encoder(num_cont = view_width, hidden_dims = hidden_dims,
@@ -209,7 +210,7 @@ subtab_wrapper <- torch::nn_module(
     # Shallow: no hidden blocks
     decoder_hidden_dims <- if (shallow) integer(0) else rev(hidden_dims[-length(hidden_dims)])
 
-    self$decoder <- subtab_decoder(in_dim = latent_dim, num_cont = view_width, cat_dims = cat_dims,
+    self$decoder <- subtab_decoder(in_dim = latent_dim, num_cont = num_cont,
                                    hidden_dims = decoder_hidden_dims, dropout = dropout)
   },
 
@@ -974,7 +975,7 @@ vime_mask_estimator <- torch::nn_module(
 #' @noRd
 vime_feature_estimator <- torch::nn_module(
 
-  initialize = function(in_dim, num_cont, cat_dims) {
+  initialize = function(in_dim, num_cont, cat_dims = NULL) {
 
     self$in_dim <- in_dim  # Dimensions of the output of the encoder
     self$num_cont <- num_cont

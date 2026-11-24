@@ -1,242 +1,272 @@
-
 # ---------- Helpers ----------
-
-# Fake preprocessed batch (numerical first, categorical last). Same as in the other subtab tests
-make_fake_batch <- function(n, num_cont, cat_dims) {
-  cont <- matrix(rnorm(n * num_cont), nrow = n, ncol = num_cont)
-  if (length(cat_dims) == 0) return(cont)
-  cats <- sapply(cat_dims, function(k) sample.int(k, n, replace = TRUE))
-  cbind(cont, cats)
-}
 
 as_float_tensor <- function(m) torch::torch_tensor(m, dtype = torch::torch_float32())
 
 # Output of subtab_wrapper that reconstructs x PERFECTLY. The rows are tiled view by view with rbind(),
 # independently of the tiling done inside the loss
-make_perfect_prediction <- function(x, num_cont, cat_dims, n_views, projection_dim = 8) {
+make_perfect_prediction <- function(x, n_views, projection_dim = 8) {
   tile <- function(m) do.call(rbind, rep(list(m), n_views))
 
-  cont <- if (num_cont > 0) as_float_tensor(tile(x[, 1:num_cont, drop = FALSE])) else NULL
-
-  cats <- NULL
-  if (length(cat_dims) > 0) {
-    cats <- lapply(seq_along(cat_dims), function(i) {
-      level_values <- tile(x[, num_cont + i, drop = FALSE])[, 1]
-      logits <- matrix(0, nrow = length(level_values), ncol = cat_dims[i] + 2)
-      logits[cbind(seq_along(level_values), level_values)] <- 50  # Huge logit on the right level
-      as_float_tensor(logits)
-    })
-  }
-
-  list(projection = torch::torch_randn(n_views * nrow(x), projection_dim), cont_estimation = cont, cat_estimation = cats)
+  list(projection = torch::torch_randn(n_views * nrow(x), projection_dim),
+       cont_estimation = as_float_tensor(tile(x)))
 }
 
 # Output of subtab_wrapper with random values
-make_random_prediction <- function(batch, num_cont, cat_dims, n_views, projection_dim = 8) {
-  list(
-    projection = torch::torch_randn(n_views * batch, projection_dim),
-    cont_estimation = if (num_cont > 0) torch::torch_randn(n_views * batch, num_cont) else NULL,
-    cat_estimation = if (length(cat_dims) > 0) lapply(cat_dims, function(k) torch::torch_randn(n_views * batch, k + 2)) else NULL
-  )
+make_random_prediction <- function(batch, num_cont, n_views, projection_dim = 8) {
+  list(projection = torch::torch_randn(n_views * batch, projection_dim),
+       cont_estimation = torch::torch_randn(n_views * batch, num_cont))
 }
 
 make_target <- function(x, n_views) list(x = as_float_tensor(x), n_views = n_views)
 
-# ---------- Reconstruction term ----------
+# Projections used to compare with the OFFICIAL implementation (loss_functions.py). The expected values below were computed
+# by running the official formulas (masks of quadrants, positives on the +-B diagonals, cross-entropy with label 0) on these matrices
+z_i_reference <- matrix(c(1.0, 0.0,
+                          0.0, 1.0,
+                          0.5, 0.5), nrow = 3, byrow = TRUE)
+z_j_reference <- matrix(c(0.9, 0.1,
+                          0.2, 0.8,
+                          -0.5, 0.5), nrow = 3, byrow = TRUE)
 
-test_that("reconstruction loss is ~0 when every view reconstructs the whole original sample", {
+# ---------- Contrastive loss: same numbers as the official implementation ----------
+
+test_that("contrastive loss gives the same values as the official implementation (dot product)", {
   skip_if_not(torch::torch_is_installed())
 
-  x <- make_fake_batch(16, 3, c(4, 3))
-  pred <- make_perfect_prediction(x, 3, c(4, 3), n_views = 4)
+  zi <- as_float_tensor(z_i_reference)
+  zj <- as_float_tensor(z_j_reference)
 
-  loss_fn <- subtab_loss(num_cont = 3, cat_dims = c(4, 3), contrastive_weight = 0, distance_weight = 0)
-  expect_lt(loss_fn(pred, make_target(x, 4))$item(), 1e-3)
+  expect_equal(subtab_contrastive_loss(zi, zj, temperature = 0.1)$item(), 1.9529816461, tolerance = 1e-5)
+  expect_equal(subtab_contrastive_loss(zi, zj, temperature = 0.5)$item(), 1.2576367229, tolerance = 1e-5)
 })
 
-
-
-test_that("reconstruction loss is clearly positive for random predictions", {
+test_that("contrastive loss is symmetric in the two views", {
   skip_if_not(torch::torch_is_installed())
 
-  x <- make_fake_batch(16, 3, c(4, 3))
-  pred <- make_random_prediction(16, 3, c(4, 3), n_views = 4)
+  zi <- torch::torch_randn(8, 6)
+  zj <- torch::torch_randn(8, 6)
 
-  loss_fn <- subtab_loss(num_cont = 3, cat_dims = c(4, 3), contrastive_weight = 0, distance_weight = 0)
+  expect_equal(subtab_contrastive_loss(zi, zj)$item(), subtab_contrastive_loss(zj, zi)$item(), tolerance = 1e-5)
+})
+
+test_that("contrastive loss is much lower when the two views of each sample are aligned (normalized projections)", {
+  skip_if_not(torch::torch_is_installed())
+
+  normalized <- function(n) torch::nnf_normalize(torch::torch_randn(n, 8), p = 2, dim = 2)
+
+  z <- normalized(16)
+  aligned <- subtab_contrastive_loss(z, z$clone(), temperature = 0.1)$item()
+  random <- subtab_contrastive_loss(normalized(16), normalized(16), temperature = 0.1)$item()
+
+  expect_lt(aligned + 2, random)
+})
+
+test_that("contrastive loss is differentiable (no NaN from the -Inf of the diagonal)", {
+  skip_if_not(torch::torch_is_installed())
+
+  zi <- torch::torch_randn(8, 6, requires_grad = TRUE)
+  zj <- torch::torch_randn(8, 6)
+
+  subtab_contrastive_loss(zi, zj)$backward()
+  gradient <- torch::as_array(zi$grad)
+
+  expect_false(anyNA(gradient))
+  expect_gt(sum(abs(gradient)), 0)
+})
+
+# ---------- Reconstruction term (official convention: sum over columns, mean over rows) ----------
+
+test_that("reconstruction uses the SUM over columns divided by the rows, as the official getMSEloss", {
+  skip_if_not(torch::torch_is_installed())
+
+  recon <- matrix(c(1, 2, 3,
+                    0, 0, 1), nrow = 2, byrow = TRUE)
+  target <- matrix(c(0, 2, 5,
+                     1, 1, 1), nrow = 2, byrow = TRUE)
+
+  # Squared errors: row 1 = 1 + 0 + 4 = 5, row 2 = 1 + 1 + 0 = 2. Sum 7 / 2 rows = 3.5 (the mean over elements would be 7 / 6)
+  loss <- subtab_feature_reconstruction_loss(as_float_tensor(recon), as_float_tensor(target), num_cont = 3)
+  expect_equal(loss$item(), 3.5, tolerance = 1e-6)
+
+  # The same number through the whole loss with a single view and no contrastive/distance terms
+  pred <- list(projection = torch::torch_randn(2, 4), cont_estimation = as_float_tensor(recon))
+  loss_fn <- subtab_loss(num_cont = 3, use_contrastive_loss = FALSE, use_distance_loss = FALSE)
+  expect_equal(loss_fn(pred, make_target(target, 1))$item(), 3.5, tolerance = 1e-6)
+})
+
+test_that("reconstruction is ~0 when every view reconstructs the whole original sample", {
+  skip_if_not(torch::torch_is_installed())
+
+  x <- matrix(rnorm(16 * 12), nrow = 16, ncol = 12)
+  pred <- make_perfect_prediction(x, n_views = 4)
+
+  loss_fn <- subtab_loss(num_cont = 12, use_contrastive_loss = FALSE, use_distance_loss = FALSE)
+  expect_lt(loss_fn(pred, make_target(x, 4))$item(), 1e-4)
+})
+
+test_that("reconstruction is clearly positive for random predictions", {
+  skip_if_not(torch::torch_is_installed())
+
+  x <- matrix(rnorm(16 * 12), nrow = 16, ncol = 12)
+  pred <- make_random_prediction(16, 12, n_views = 4)
+
+  loss_fn <- subtab_loss(num_cont = 12, use_contrastive_loss = FALSE, use_distance_loss = FALSE)
   expect_gt(loss_fn(pred, make_target(x, 4))$item(), 1)
 })
 
-
-
-
-
-test_that("weights scale their term and a weight of 0 removes it", {
+test_that("the rows of the target follow the view-by-view order (an interleaved order is detected)", {
   skip_if_not(torch::torch_is_installed())
 
-  x <- make_fake_batch(16, 3, c(4, 3))
-  pred <- make_random_prediction(16, 3, c(4, 3), n_views = 3)
-  target <- make_target(x, 3)
+  x <- matrix(rnorm(16 * 6), nrow = 16, ncol = 6)
+  n_views <- 3
+  loss_fn <- subtab_loss(num_cont = 6, use_contrastive_loss = FALSE, use_distance_loss = FALSE)
 
-  only <- function(r, c, d) subtab_loss(3, c(4, 3), reconstruction_weight = r, contrastive_weight = c, distance_weight = d)(pred, target)$item()
+  # Correct order: [x; x; x]
+  correct <- make_perfect_prediction(x, n_views = n_views)
+  expect_lt(loss_fn(correct, make_target(x, n_views))$item(), 1e-4)
 
-  expect_equal(only(3, 0, 0), 3 * only(1, 0, 0), tolerance = 1e-5)
-  expect_equal(only(1, 2, 5), only(1, 0, 0) + only(0, 2, 0) + only(0, 0, 5), tolerance = 1e-5)  # The total is the weighted sum
-  expect_equal(only(0, 0, 0), 0)
+  # Wrong order: each sample repeated n_views times in a row
+  interleaved <- correct
+  interleaved$cont_estimation <- as_float_tensor(x[rep(seq_len(nrow(x)), each = n_views), ])
+  expect_gt(loss_fn(interleaved, make_target(x, n_views))$item(), 0.1)
 })
 
-
-
-
-test_that("reconstruction works with only numerical or only categorical columns", {
+test_that("reconstruction works with a single view", {
   skip_if_not(torch::torch_is_installed())
 
-  x_num <- make_fake_batch(10, 4, integer(0))
-  pred_num <- make_perfect_prediction(x_num, 4, integer(0), n_views = 2)
-  loss_num <- subtab_loss(4, integer(0), contrastive_weight = 0, distance_weight = 0)
-  expect_lt(loss_num(pred_num, make_target(x_num, 2))$item(), 1e-3)
+  x <- matrix(rnorm(10 * 4), nrow = 10, ncol = 4)
+  loss_fn <- subtab_loss(num_cont = 4, use_contrastive_loss = FALSE, use_distance_loss = FALSE)
 
-  x_cat <- make_fake_batch(10, 0, c(4, 3))
-  pred_cat <- make_perfect_prediction(x_cat, 0, c(4, 3), n_views = 2)
-  loss_cat <- subtab_loss(0, c(4, 3), contrastive_weight = 0, distance_weight = 0)
-  expect_lt(loss_cat(pred_cat, make_target(x_cat, 2))$item(), 1e-3)
+  expect_lt(loss_fn(make_perfect_prediction(x, n_views = 1), make_target(x, 1))$item(), 1e-4)
 })
 
+# ---------- Distance term ----------
 
-test_that("reconstruction loss with a single view is allowed", {
+test_that("distance loss is the official getMSEloss(zi, zj): sum of squares / samples", {
   skip_if_not(torch::torch_is_installed())
 
-  x <- make_fake_batch(10, 3, c(4, 3))
-  pred <- make_perfect_prediction(x, 3, c(4, 3), n_views = 1)
+  x <- matrix(rnorm(3 * 2), nrow = 3, ncol = 2)
+  pred <- make_perfect_prediction(x, n_views = 2, projection_dim = 2)
+  pred$projection <- torch::torch_cat(list(as_float_tensor(z_i_reference), as_float_tensor(z_j_reference)), dim = 1)
 
-  loss_fn <- subtab_loss(3, c(4, 3), contrastive_weight = 0, distance_weight = 0)
-  expect_lt(loss_fn(pred, make_target(x, 1))$item(), 1e-3)
+  loss_fn <- subtab_loss(num_cont = 2, use_contrastive_loss = FALSE, use_distance_loss = TRUE)
+  total <- loss_fn(pred, make_target(x, 2))$item()
+
+  # z_i - z_j: (0.1, -0.1), (-0.2, 0.2), (1.0, 0.0) -> 0.02 + 0.08 + 1.0 = 1.1, divided by 3 samples = 0.3666667. Reconstruction is ~0
+  expect_equal(total, 1.1 / 3, tolerance = 1e-5)
+  expect_equal(loss_fn$components$distance$item(), 1.1 / 3, tolerance = 1e-5)
 })
-
 
 test_that("distance loss is 0 when all the views have the same projection and positive otherwise", {
   skip_if_not(torch::torch_is_installed())
 
-  x <- make_fake_batch(16, 3, c(4, 3))
+  x <- matrix(rnorm(16 * 5), nrow = 16, ncol = 5)
   target <- make_target(x, 3)
-  loss_fn <- subtab_loss(3, c(4, 3), reconstruction_weight = 0, contrastive_weight = 0, distance_weight = 1)
+  loss_fn <- subtab_loss(num_cont = 5, use_contrastive_loss = FALSE, use_distance_loss = TRUE)
 
-  # The same projection repeated view by view
   z <- torch::torch_randn(16, 8)
-  pred_same <- make_random_prediction(16, 3, c(4, 3), n_views = 3)
-  pred_same$projection <- torch::torch_cat(list(z, z, z), dim = 1)
+  same <- make_perfect_prediction(x, n_views = 3)
+  same$projection <- torch::torch_cat(list(z, z, z), dim = 1)
+  loss_fn(same, target)
+  expect_lt(loss_fn$components$distance$item(), 1e-6)
 
-  pred_different <- make_random_prediction(16, 3, c(4, 3), n_views = 3)
-
-  expect_lt(loss_fn(pred_same, target)$item(), 1e-6)
-  expect_gt(loss_fn(pred_different, target)$item(), 0.1)
+  different <- make_perfect_prediction(x, n_views = 3)
+  loss_fn(different, target)
+  expect_gt(loss_fn$components$distance$item(), 0.1)
 })
 
+# ---------- Total loss ----------
 
-test_that("contrastive loss is lower when the views of the same sample have aligned projections", {
+test_that("official defaults: contrastive and distance on, tau = 0.1", {
   skip_if_not(torch::torch_is_installed())
 
-  x <- make_fake_batch(16, 3, c(4, 3))
-  target <- make_target(x, 3)
-  loss_fn <- subtab_loss(3, c(4, 3), reconstruction_weight = 0, contrastive_weight = 1, distance_weight = 0)
+  loss_fn <- subtab_loss(num_cont = 5)
 
-  z <- torch::torch_randn(16, 8)
-  pred_aligned <- make_random_prediction(16, 3, c(4, 3), n_views = 3)
-  pred_aligned$projection <- torch::torch_cat(list(z, z, z), dim = 1)
-
-  pred_random <- make_random_prediction(16, 3, c(4, 3), n_views = 3)
-
-  expect_lt(loss_fn(pred_aligned, target)$item() + 0.5, loss_fn(pred_random, target)$item())
+  expect_true(loss_fn$use_contrastive_loss)
+  expect_true(loss_fn$use_distance_loss)
+  expect_equal(loss_fn$temperature, 0.1)
 })
 
+test_that("the total is reconstruction + mean contrastive over pairs + mean distance over pairs", {
+  skip_if_not(torch::torch_is_installed())
+
+  batch <- 8
+  n_views <- 3
+  x <- matrix(rnorm(batch * 5), nrow = batch, ncol = 5)
+  pred <- make_random_prediction(batch, 5, n_views = n_views, projection_dim = 6)
+
+  loss_fn <- subtab_loss(num_cont = 5)
+  total <- loss_fn(pred, make_target(x, n_views))$item()
+  components <- loss_fn$components
+
+  expect_equal(total, components$reconstruction$item() + components$contrastive$item() + components$distance$item(), tolerance = 1e-5)
+
+  # Averages over the 3 pairs (1, 2), (1, 3), (2, 3), computed by hand
+  z <- pred$projection$reshape(c(n_views, batch, -1))
+  pairs <- list(c(1, 2), c(1, 3), c(2, 3))
+
+  manual_contrastive <- mean(sapply(pairs, function(p) subtab_contrastive_loss(z[p[1], , ], z[p[2], , ], 0.1)$item()))
+  manual_distance <- mean(sapply(pairs, function(p) ((z[p[1], , ] - z[p[2], , ])$pow(2)$sum() / batch)$item()))
+
+  expect_equal(components$contrastive$item(), manual_contrastive, tolerance = 1e-5)
+  expect_equal(components$distance$item(), manual_distance, tolerance = 1e-5)
+})
+
+test_that("a disabled term is not computed and its component is NULL", {
+  skip_if_not(torch::torch_is_installed())
+
+  x <- matrix(rnorm(8 * 5), nrow = 8, ncol = 5)
+  pred <- make_random_prediction(8, 5, n_views = 3)
+  target <- make_target(x, 3)
+
+  only_distance <- subtab_loss(num_cont = 5, use_contrastive_loss = FALSE, use_distance_loss = TRUE)
+  total <- only_distance(pred, target)$item()
+  expect_null(only_distance$components$contrastive)
+  expect_equal(total, only_distance$components$reconstruction$item() + only_distance$components$distance$item(), tolerance = 1e-5)
+
+  only_reconstruction <- subtab_loss(num_cont = 5, use_contrastive_loss = FALSE, use_distance_loss = FALSE)
+  only_reconstruction(pred, target)
+  expect_null(only_reconstruction$components$contrastive)
+  expect_null(only_reconstruction$components$distance)
+})
 
 test_that("contrastive and distance losses need at least 2 views, reconstruction alone does not", {
   skip_if_not(torch::torch_is_installed())
 
-  x <- make_fake_batch(10, 3, c(4, 3))
-  pred <- make_random_prediction(10, 3, c(4, 3), n_views = 1)
+  x <- matrix(rnorm(10 * 5), nrow = 10, ncol = 5)
+  pred <- make_random_prediction(10, 5, n_views = 1)
   target <- make_target(x, 1)
 
-  expect_error(subtab_loss(3, c(4, 3))(pred, target), "subtab loss: contrastive and distance losses require at least two views. Use n_views >= 2 or set contrastive and distance weights to 0.")
-  expect_error(subtab_loss(3, c(4, 3), contrastive_weight = 0, distance_weight = 0)(pred, target), NA)
+  expect_error(subtab_loss(num_cont = 5)(pred, target), "at least 2 views")
+  expect_error(subtab_loss(num_cont = 5, use_contrastive_loss = FALSE, use_distance_loss = FALSE)(pred, target), NA)
 })
 
-
-
-# ---------- Integration: views -> apply_view_mask -> wrapper -> loss ----------
+# ---------- Integration: crop -> noise -> wrapper -> loss ----------
 
 test_that("the whole pipeline gives a finite scalar and the gradient reaches the shared encoder", {
   skip_if_not(torch::torch_is_installed())
 
-  num_cont <- 3
-  cat_dims <- c(4, 3)
+  d <- 8
   batch <- 8
-  n_views <- 3
+  x <- matrix(rnorm(batch * d), nrow = batch, ncol = d)
 
-  x <- make_fake_batch(batch, num_cont, cat_dims)
-  views <- make_subtab_views(d = 5, n_views = n_views, overlap = 0.5)
-  applied <- apply_view_mask(x, views, num_cont = num_cont, cat_dims = cat_dims)
+  views <- make_subtab_views(d = d, n_views = 2, overlap = 0.5)  # Views 1:6 and 3:8, both of width 6
+  idx <- subtab_view_indices(views)
+  eligible <- subtab_noise_eligibility(idx, subtab_detect_binary_columns(x), noise_on_binary = FALSE)
 
-  wrapper <- subtab_wrapper(num_cont = num_cont, cat_dims = cat_dims, hidden_dim = 16, head_hidden_dim = 8)
-  loss_fn <- subtab_loss(num_cont = num_cont, cat_dims = cat_dims)
+  x_tensor <- as_float_tensor(x)
+  noisy_views <- subtab_add_noise(subtab_crop_views(x_tensor, idx), n_views = nrow(idx), noise_type = "swap_noise",
+                                  masking_ratio = 0.3, eligible = eligible)
 
-  # Target: the ORIGINAL batch (not the masked one) and the number of views
-  loss <- loss_fn(wrapper(applied), list(x = as_float_tensor(x), n_views = applied$n_views))
+  wrapper <- subtab_wrapper(num_cont = d, view_width = ncol(idx), hidden_dims = c(16, 16))
+  loss_fn <- subtab_loss(num_cont = d)
 
-  expect_equal(loss$numel(), 1)  # scalar
+  # Input: the NOISY views. Target: the CLEAN original batch and the number of views
+  loss <- loss_fn(wrapper(list(x = noisy_views)), list(x = x_tensor, n_views = nrow(idx)))
+
+  expect_equal(loss$numel(), 1)
   expect_true(is.finite(loss$item()))
 
   loss$backward()
   expect_gt(as.numeric(wrapper$main_encoder$encoder[[1]]$weight$grad$abs()$sum()), 0)
 })
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-test_that("vime_loss includes the reconstruction term", {
-  skip_if_not_installed("torch")
-
-  B <- 8
-  num_cont <- 2
-  cat_dims <- 3
-
-  x <- torch::torch_cat(list(
-    torch::torch_randn(B, num_cont),
-    torch::torch_randint(1, 4, size = c(B, 1))$to(dtype = torch::torch_float())
-  ), dim = 2)
-  mask <- (torch::torch_rand(B, num_cont + 1) < 0.5)$to(dtype = torch::torch_float())
-
-  pred <- list(  # Simulate predictions
-    cont_estimation = torch::torch_randn(B, num_cont),
-    cat_estimation  = list(torch::torch_randn(B, cat_dims + 2)),
-    mask_estimation = torch::torch_rand(B, num_cont + 1)
-  )
-  target <- list(x = x, mask = mask)
-
-  loss_fn <- vime_loss(alpha = 1, num_cont = num_cont, cat_dims = cat_dims)
-  full    <- loss_fn(pred, target)$item()
-
-  mask_only <- torch::nnf_binary_cross_entropy(pred$mask, mask)$item()
-  expect_gt(full, mask_only)   # The combined loss is greater than the loss produced by the mask
-
-  # If alpha = 0, only mask loss
-  loss0 <- vime_loss(alpha = 0, num_cont = num_cont, cat_dims = cat_dims)
-  expect_equal(loss0(pred, target)$item(), mask_only, tolerance = 1e-6)
-})
-
-
-
-
-

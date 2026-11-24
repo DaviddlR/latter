@@ -1,4 +1,8 @@
 
+
+
+
+
 ############ Subtab-like PRETRAINING ############
 subtab_fit = function(
     dataframe_train,
@@ -38,6 +42,133 @@ subtab_fit = function(
 
   print(applied)  # 701364 con UNSW-NB15 = 4 x 175341 train samples
 }
+
+
+
+subtab_make_batch <- function(x, view_indices, shuffle_view_order = FALSE, add_noise = TRUE,
+                              noise_type = "swap_noise", masking_ratio = 0.3, noise_level = 0.1,
+                              binary_columns = NULL, noise_on_binary = FALSE) {
+
+  # Permute the order of the subsets. The eligibility of the columns is computed after permuting
+
+  # Shuffle
+  if (shuffle_view_order) view_indices <- view_indices[sample.int(nrow(view_indices)), , drop = FALSE]
+
+  # Get views
+  views <- subtab_crop_views(x, view_indices)  # [n_views * B, view_width]
+
+  if (add_noise) {
+
+    # Select elegible based on which column is binary (if the user selected it)
+    eligible <- subtab_noise_eligibility(view_indices, binary_columns, noise_on_binary, device = x$device)
+
+    # Add noise to the elegible columns
+    views <- subtab_add_noise(views, n_views = nrow(view_indices), noise_type = noise_type,
+                              masking_ratio = masking_ratio, noise_level = noise_level, eligible = eligible)
+  }
+
+  list(
+    input = list(x = views),
+    target = list(x = x, n_views = nrow(view_indices))
+  )
+}
+
+
+custom_subtab_step_callback <- luz::luz_callback(
+
+  name = "subtab_custom_steps",
+
+  initialize = function(
+    view_indices,
+    add_noise = TRUE,
+    noise_type = c("swap_noise", "gaussian_noise", "zero_out"),
+    masking_ratio = 0.3,
+    noise_level = 0.1,
+    binary_columns = NULL,
+    noise_on_binary = FALSE
+  ) {
+
+    noise_type <- match.arg(noise_type)
+
+    # Checks for validation (TODO: hacer esto en todas las funciones).
+    if (!is.matrix(view_indices)) stop("custom_subtab_step_callback: 'view_indices' must be the output of subtab_view_indices()")
+
+    if (add_noise && !noise_on_binary) {
+      if (is.null(binary_columns)) {
+        stop("custom_subtab_step_callback: 'binary_columns' is required to protect the binary columns. ",
+             "Use subtab_detect_binary_columns(x_train), or set noise_on_binary = TRUE to corrupt every column (official behaviour)")
+      }
+      if (length(binary_columns) < max(view_indices)) {
+        stop("custom_subtab_step_callback: 'binary_columns' has fewer elements than the columns of the data")
+      }
+    }
+
+    self$view_indices <- view_indices
+    self$add_noise <- add_noise
+    self$noise_type <- noise_type
+    self$masking_ratio <- masking_ratio
+    self$noise_level <- noise_level
+    self$binary_columns <- binary_columns
+    self$noise_on_binary <- noise_on_binary
+
+  },
+
+
+  # Train. It receives a batch from the dataloader
+  on_train_batch_begin = function() {
+
+    x <- ctx$batch$x  # Clean data
+
+    subtab_batch <- subtab_make_batch(
+      x = x,
+      view_indices = self$view_indices,
+      shuffle_view_order = TRUE,
+      add_noise = self$add_noise,
+      noise_type = self$noise_type,
+      masking_ratio = self$masking_ratio,
+      noise_level = self$noise_level,
+      binary_columns = self$binary_columns,
+      noise_on_binary = self$noise_on_binary
+    )
+
+    # Update context with permuted, shuffled and noisy samples
+
+    ctx$input <- subtab_batch$input  # Input for forward method
+    ctx$target <- subtab_batch$target  # Target variable in the loss function
+
+  },
+
+  # Validation
+  on_validation_batch_begin = function() {
+    x <- ctx$batch$x  # Clean data
+
+    subtab_batch <- subtab_make_batch(
+      x = x,
+      view_indices = self$view_indices,
+      shuffle_view_order = TRUE,
+      add_noise = self$add_noise,
+      noise_type = self$noise_type,
+      masking_ratio = self$masking_ratio,
+      noise_level = self$noise_level,
+      binary_columns = self$binary_columns,
+      noise_on_binary = self$noise_on_binary
+    )
+
+    # Update context with permuted, shuffled and noisy samples
+
+    ctx$input <- subtab_batch$input  # Input for forward method
+    ctx$target <- subtab_batch$target  # Target variable in the loss function
+  }
+
+
+
+
+
+
+
+)
+
+
 
 
 
