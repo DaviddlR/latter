@@ -104,7 +104,7 @@ subtab_encoder <- torch::nn_module(
 subtab_projection_head <- torch::nn_module(
   name = "subtab_projection_head",
 
-  initialize = function(in_dim, normalize = TRUE, p_norm = 2) {
+  initialize = function(in_dim) {
 
     self$normalize <- normalize
     self$p_norm <- p_norm
@@ -123,9 +123,9 @@ subtab_projection_head <- torch::nn_module(
 
     # Each row is normalized
     # In R torch the dimension 2 is the one of the features (python dim = 1)
-    if (self$normalize) z <- torch::nnf_normalize(z, p = self$p_norm, dim = 2)
+    z <- torch::nnf_normalize(z, p = 2, dim = 2)
 
-    z
+    return (z)
   }
 )
 
@@ -168,15 +168,15 @@ subtab_decoder <- torch::nn_module(
 #'
 #' Each view is the subset of columns
 #'
-#' @param num_cont
-#' @param view_width
-#' @param hidden_dims
-#' @param shallow
-#' @param dropout
-#' @param normalize
-#' @param p_norm
+#' @param num_cont q
+#' @param view_width q
+#' @param hidden_dims q
+#' @param shallow q
+#' @param dropout q
+#' @param normalize q
+#' @param p_norm q
 #'
-#' @returns
+#' @returns q
 #' @noRd
 subtab_wrapper <- torch::nn_module(
   name = "subtab_wrapper",
@@ -184,8 +184,7 @@ subtab_wrapper <- torch::nn_module(
 
   initialize = function(num_cont = NULL,  # For the decoder (all dimensions)
                         view_width = NULL,  # For the encoder (just the view)
-                        hidden_dims = c(256, 256), shallow = TRUE, dropout = 0.0,
-                        normalize = TRUE, p_norm = 2) {
+                        hidden_dims = c(256, 256), shallow = TRUE, dropout = 0.0) {
 
 
     # What the encoder receives depends on the view mode. What the decoder reconstructs is always the whole sample
@@ -204,7 +203,7 @@ subtab_wrapper <- torch::nn_module(
     latent_dim <- self$main_encoder$output_dim
 
     # Projection head
-    self$projection_head <- subtab_projection_head(in_dim = latent_dim, normalize = normalize, p_norm = p_norm)
+    self$projection_head <- subtab_projection_head(in_dim = latent_dim)
 
     # Symmetric decoder. The hidden widths of the encoder in reverse order, without the latent one.
     # Shallow: no hidden blocks
@@ -499,20 +498,18 @@ subtab_wrapper_remove <- torch::nn_module(
 #' Title
 #'
 #' @param num_cont Number of numerical features
-#' @param cat_dims
-#' @param hidden_dim
-#' @param num_hidden
-#' @param dropout
-#' @param use_indicator
-#' @param head_hidden_dim
-#' @param head_num_hidden
-#' @param decoder_hidden_dim
-#' @param decoder_num_hidden
+#' @param cat_dims q
+#' @param hidden_dim q
+#' @param num_hidden q
+#' @param dropout q
+#' @param use_indicator q
+#' @param head_hidden_dim q
+#' @param head_num_hidden q
+#' @param decoder_hidden_dim q
+#' @param decoder_num_hidden q
 #'
-#' @returns
-#' @export
-#'
-#' @examples
+#' @returns q
+#' @noRd
   initialize = function(num_cont, cat_dims, hidden_dim = 256, num_hidden = 4, dropout = 0.0, use_indicator = TRUE,
                         head_hidden_dim = 256, head_num_hidden = 2,
                         decoder_hidden_dim = 256, decoder_num_hidden = 2) {

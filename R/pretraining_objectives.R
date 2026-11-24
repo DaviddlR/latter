@@ -11,8 +11,25 @@ subtab_fit = function(
     validation_proportion = 0.1,
     batch_size = 256,
     n_epochs = 1,
-    preprocess = TRUE
+    preprocess = TRUE,
+    n_views = 4,
+    overlap = 0.5,
+    shuffle_columns = FALSE,
+    use_contrastive_loss = TRUE,
+    use_distance_loss = TRUE,
+    temperature = 0.1,
+    add_noise = TRUE,
+    noise_type = c("swap_noise", "gaussian_noise", "zero_out"),
+    masking_ratio = 0.3,
+    noise_level = 0.1,
+    noise_on_binary = FALSE
+
 ) {
+
+  # Checks
+  if (n_views < 2 && (use_contrastive_loss || use_distance_loss)) {
+    stop("subtab_fit: the contrastive and distance losses need at least 2 views. Use n_views >= 2 or disable both losses.")
+  }
 
   # Load and preprocess data
   preprocessed_datasets <- prepare_data(
@@ -20,7 +37,8 @@ subtab_fit = function(
     exclude_columns = exclude_columns,
     create_validation = create_validation,
     validation_proportion = validation_proportion,
-    preprocess = preprocess
+    preprocess = preprocess,
+    one_hot = TRUE  # OHE for subtab
   )
 
   x_train <- preprocessed_datasets$train_set
@@ -28,19 +46,97 @@ subtab_fit = function(
   recipe <- preprocessed_datasets$recipe  # May be null
   metadata_for_cat <- preprocessed_datasets$metadata_for_cat
 
+  if (length(metadata_for_cat$cat_cols) > 0) {
+    stop("subtab_fit: SubTab only accepts numerical columns, but these are categorical: ", paste(metadata_for_cat$cat_cols, collapse = ", "),
+         ". One-hot encode them first, e.g. recipes::step_dummy(all_nominal_predictors(), one_hot = TRUE) AFTER step_normalize(), ",
+         "or use preprocess = TRUE.")
+  }
+
   # print(metadata_for_cat)
   # print(length(metadata_for_cat$num_cols))  # Number of numerical columns
   # print(length(metadata_for_cat$cat_dims))  # Number of categorical columns
   # print(length(x_train[1,]))  # Total number of columns
 
+
+  # Get additional parameters
+  d <- ncol(x_train)  # Total number of columns (after one-hot encoding)
+  column_names <- colnames(x_train)
+
   # Get subtab views
+  views <- make_subtab_views(
+    d = d,
+    n_views = n_views,
+    overlap = overlap,
+    shuffle = shuffle_columns,
+    column_names = column_names
+  )
 
-  views <- make_subtab_views(d = length(x_train[1,]), n_views = 4, overlap = 0.5, shuffle = TRUE)
-  print(views)
+  view_indices <- subtab_view_indices(views = views)
+  view_width <- ncol(view_indices)
 
-  applied <- apply_view_mask(x_train, views = views, num_cont = length(metadata_for_cat$num_cols), cat_dims = metadata_for_cat$cat_dims, add_indicator = TRUE)
+  # Check binary columns
+  binary_columns <- subtab_detect_binary_columns(x = x_train)
 
-  print(applied)  # 701364 con UNSW-NB15 = 4 x 175341 train samples
+  # Create training dataset and dataloader
+  train_ds <- create_tensor_dataset(x_train)
+
+  train_dl <- torch::dataloader(train_ds,
+                                batch_size = batch_size,
+                                shuffle = TRUE)
+
+  # Create validation dataset and dataloader (if required)
+  val_dl <- NULL
+
+  if(create_validation) {
+    val_ds <- create_tensor_dataset(x_val)
+
+    val_dl <- torch::dataloader(val_ds,
+                                batch_size = batch_size,
+                                shuffle=FALSE)
+  }
+
+
+
+  # Create wrapper
+  fitted <- subtab_wrapper |>
+    luz::setup(
+      loss = subtab_loss(
+        num_cont = d,
+        use_contrastive_loss = use_contrastive_loss,
+        use_distance_loss = use_distance_loss,
+        temperature = temperature
+      ),
+
+      optimizer = torch::optim_adam
+    ) |>
+    luz::set_hparams(
+      num_cont = d,
+      view_width = view_width,
+      hidden_dims = c(256, 256),  # TODO: hiperparámetros
+      shallow = TRUE,
+      dropout = 0
+    ) |>
+    luz::set_opt_hparams(
+      lr = 0.001
+    ) |>
+    luz::fit(
+      train_dl,
+      epochs = n_epochs,
+      valid_data = val_dl,
+      callbacks = list(custom_subtab_step_callback(
+        view_indices = view_indices,
+        add_noise = add_noise,
+        noise_type = noise_type,
+        masking_ratio = masking_ratio,
+        noise_level = noise_level,
+        binary_columns = binary_columns,
+        noise_on_binary = noise_on_binary
+      ))
+    )
+
+
+  # Save encoder and bundle (TODO)
+
 }
 
 

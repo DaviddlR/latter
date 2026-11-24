@@ -87,7 +87,8 @@ prepare_data = function(
     exclude_columns = NULL,
     create_validation = FALSE,
     validation_proportion = 0.1,
-    preprocess = TRUE
+    preprocess = FALSE,
+    one_hot = FALSE
 ) {
 
   df_train_data <- as.data.frame(dataframe_train)
@@ -125,6 +126,13 @@ prepare_data = function(
       recipes::step_normalize(recipes::all_numeric_predictors())  # Standard normalization
       # recipes::step_integer(recipes::all_nominal_predictors(), zero_based = FALSE)
       # recipes::step_dummy(recipes::all_nominal_predictors(), one_hot = TRUE)  # One-hot encoding
+
+    if (one_hot) {
+      rec <- recipes::step_dummy(rec, recipes::all_nominal_predictors(), one_hot = TRUE) |>
+        recipes::step_zv(recipes::all_predictors())
+    }
+
+
 
 
     # Fit recipe to training set
