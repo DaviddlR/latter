@@ -6,7 +6,7 @@
 #' Trains an encoder using different self-supervised objectives. It prepares the data using a recipe, applies random feature corruption and fits the model.
 #'
 #' @param dataframe_train A \code{data.frame} used to train de model.
-#' @param pretraining_type A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it follows SCARF pretraining. Available options are \code{["SCARF", "VIME", "Binning"]}.
+#' @param pretraining_type A \code{character} indicating the pretraining objective. Default is \code{"SCARF"}, so that it follows SCARF pretraining. Available options are \code{["SCARF", "VIME", "Binning", "Subtab"]}.
 #' @param handle_categorical A \code{character} used during \code{"Binning"} training. It indicates how to manage the categorical features. Available options are \code{["top_frequent"]}
 #' @param corruption_during_binning \code{Boolean} used during \code{"Binning"} training. If \code{TRUE}, it corrupts the training dataset by replacing features of each batch with features of other random instances of the same batch.
 #' @param exclude_columns A \code{character} of columns that the model should ignore during pretraining (i.e target or ID columns). Default is \code{NULL}.
@@ -65,7 +65,8 @@ fit_extractor <- function (
     batch_size = 256,
     n_epochs = 150,
     save_path = "pretrained",
-    preprocess = TRUE
+    preprocess = TRUE,
+    subtab_args = list()  # TODO: check si esto funciona mejor. Ahorra hiperparámetros
 ) {
 
 
@@ -108,9 +109,28 @@ fit_extractor <- function (
       preprocess = preprocess
     )
 
+  } else if (identical(pretraining_type, "Subtab")) {
+
+    check_subtab_args(subtab_args)
+
+    # Subtab pretraining
+    trained_bundle <- do.call(subtab_fit, c(
+      list(
+        dataframe_train = dataframe_train,
+        exclude_columns = exclude_columns,
+        create_validation = create_validation,
+        validation_proportion = validation_proportion,
+        batch_size = batch_size,
+        n_epochs = n_epochs,
+        preprocess = preprocess
+      ),
+      subtab_args
+    ))
   } else {
-    stop("The selected 'pretraining_type' is not supported. Please select one of the available options: 'SCARF', 'VIME', 'Binning'")
+    stop("The selected 'pretraining_type' is not supported. Please select one of the available options: 'SCARF', 'VIME', 'Binning', 'Subtab'")
   }
+
+  print("Fit_extractor (subtab, ending)")
 
   # Store the pretrained model locally or in RAM memory
 

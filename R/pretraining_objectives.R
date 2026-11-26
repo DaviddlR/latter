@@ -95,7 +95,9 @@ subtab_fit = function(
                                 shuffle=FALSE)
   }
 
-
+  hidden_dims = c(256, 256)  # TODO: hiperparámetros
+  shallow = TRUE
+  dropout = 0
 
   # Create wrapper
   fitted <- subtab_wrapper |>
@@ -112,9 +114,9 @@ subtab_fit = function(
     luz::set_hparams(
       num_cont = d,
       view_width = view_width,
-      hidden_dims = c(256, 256),  # TODO: hiperparámetros
-      shallow = TRUE,
-      dropout = 0
+      hidden_dims = hidden_dims,  # TODO: hiperparámetros
+      shallow = shallow,
+      dropout = dropout
     ) |>
     luz::set_opt_hparams(
       lr = 0.001
@@ -135,7 +137,29 @@ subtab_fit = function(
     )
 
 
-  # Save encoder and bundle (TODO)
+  # Save encoder and bundle
+  encoder_weights <- fitted$model$main_encoder$state_dict()
+
+  hparams <- list(
+    num_cont = view_width,  # Input of the encoder: the width of ONE view
+    hidden_dims = hidden_dims,
+    shallow = shallow,
+    dropout = dropout
+  )
+
+  model_bundle <- list(
+    encoder_state_dict = encoder_weights,
+    encoder_hparams = hparams,
+    view_indices = view_indices,  # Columns of each view (the order of the columns is the one of 'column_names')
+    n_views = nrow(view_indices),
+    aggregation = "mean",  # How the representations of the views are combined when extracting features
+    column_names = column_names,  # To check that the data to transform has the same columns, in the same order
+    # metadata_for_cat = metadata_for_cat, # Not needed in subtab
+    recipe = serialize(recipe, NULL),
+    bundle_type = "subtab_bundle"
+  )
+
+  return(invisible(model_bundle))
 
 }
 
@@ -235,7 +259,7 @@ custom_subtab_step_callback <- luz::luz_callback(
   },
 
   # Validation
-  on_validation_batch_begin = function() {
+  on_valid_batch_begin = function() {
     x <- ctx$batch$x  # Clean data
 
     subtab_batch <- subtab_make_batch(

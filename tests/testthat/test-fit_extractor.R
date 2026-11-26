@@ -125,6 +125,45 @@ test_that("fit_extractor with Binning works and outputs correct structure", {
 })
 
 
+# Flow with Subtab
+# Simple test and output
+test_that("fit_extractor with Subtab works and outputs correct structure", {
+  skip_if_not_installed("torch")
+
+  df <- create_dummy_data()
+  tmp_file <- tempfile(fileext = "")
+
+  on.exit(if (file.exists(paste0(tmp_file, ".pt"))) file.remove(paste0(tmp_file, ".pt")))
+
+  subtab_args = list(n_views = 4, overlap = 0.5, shuffle_columns = FALSE, noise_type = "swap_noise")
+
+  res <- fit_extractor(
+    dataframe_train = df_train,
+    pretraining_type = "Subtab",
+    exclude_columns = exclude_columns,
+    create_validation = TRUE,
+    validation_proportion = 0.1,
+    batch_size = 256,
+    n_epochs = 1,
+    save_path = tmp_file,
+    subtab_args = subtab_args
+  )
+
+  # Check invisible return (for recipes)
+  expect_type(res, "list")
+  expect_named(res, c("encoder_state_dict", "encoder_hparams", "view_indices", "n_views", "aggregation", "column_names", "recipe", "bundle_type"))
+  expect_equal(res$bundle_type, "subtab_bundle")
+
+  # Save_path = something, so it saves file locally
+  expect_true(file.exists(paste0(tmp_file, ".pt")))
+
+  # Check saved file
+  loaded_bundle <- torch::torch_load(paste0(tmp_file, ".pt"))
+  expect_type(loaded_bundle, "list")
+  expect_equal(loaded_bundle$bundle_type, "subtab_bundle")
+
+})
+
 
 
 # NULL save_path

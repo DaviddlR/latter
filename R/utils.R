@@ -119,6 +119,33 @@ load_bundle = function(bundle_path) {
       metadata_for_cat = info_for_categorical
     ))
 
+  # Subtab bundle
+  } else if (is.list(model_bundle) && identical(model_bundle$bundle_type, "subtab_bundle")) {
+
+    # Load encoder hyperparameters. 'num_cont' is the width of ONE view
+    hparams <- model_bundle$encoder_hparams
+
+    # Create a new encoder
+    fitted_encoder <- subtab_encoder(
+      num_cont = hparams$num_cont,
+      hidden_dims = hparams$hidden_dims,
+      shallow = hparams$shallow,
+      dropout = hparams$dropout
+    )
+
+    # Load trained weights
+    fitted_encoder$load_state_dict(model_bundle$encoder_state_dict)
+
+    return (list(
+      encoder = fitted_encoder,
+      recipe = unserialize(model_bundle$recipe),
+      metadata_for_cat = model_bundle$metadata_for_cat,
+      bundle_type = "subtab_bundle",  # extract_features() needs it: Subtab crops the views before the encoder
+      view_indices = model_bundle$view_indices,
+      aggregation = model_bundle$aggregation,
+      column_names = model_bundle$column_names
+    ))
+
   } else {
     stop("The input is not a valid bundle. Please, train a model using fit_extractor() and set the pretrained_model_path to the path in which the trained model is stored")
   }
@@ -326,6 +353,40 @@ subtab_add_noise <- function(x_views, n_views, noise_type = c("swap_noise", "gau
   noisy <- torch::torch_where(corrupt, replacement, x)
 
   noisy$reshape(c(n_views * batch_size, view_width))
+}
+
+
+
+#' Check the extra arguments of SubTab
+#'
+#' \code{fit_extractor()} and \code{step_extract_latent()} receive the arguments that only belong to SubTab in a named list, \code{subtab_args},
+#' that is passed to \code{subtab_fit()}. Here it is checked that its names are valid.
+#'
+#' @param subtab_args A named \code{list} (it can be empty).
+#'
+#' @returns \code{subtab_args}, invisibly. It fails if there are unknown names or names that are managed by the caller.
+#' @noRd
+check_subtab_args <- function(subtab_args) {
+
+  if (!is.list(subtab_args)) stop("'subtab_args' must be a named list, i.e. list(n_views = 4, overlap = 0.75)")
+  if (length(subtab_args) == 0) return(invisible(subtab_args))
+
+  if (is.null(names(subtab_args)) || any(names(subtab_args) == "")) {
+    stop("'subtab_args' must be a named list, i.e. list(n_views = 4, overlap = 0.75)")
+  }
+
+  # These ones have their own argument in fit_extractor() / step_extract_latent()
+  managed_elsewhere <- c("dataframe_train", "exclude_columns", "create_validation", "validation_proportion",
+                         "batch_size", "n_epochs", "preprocess")
+  allowed <- setdiff(names(formals(subtab_fit)), managed_elsewhere)
+
+  unknown <- setdiff(names(subtab_args), allowed)
+  if (length(unknown) > 0) {
+    stop("Unknown or not allowed element(s) in 'subtab_args': ", paste(unknown, collapse = ", "),
+         ". Available: ", paste(allowed, collapse = ", "))
+  }
+
+  return (invisible(subtab_args))
 }
 
 

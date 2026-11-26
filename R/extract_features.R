@@ -86,6 +86,20 @@ extract_features = function(
   dataframe_cleaned <- dataframe_cleaned_xy$x
   dataframe_labels <- dataframe_cleaned_xy$y
 
+  # Subtab crops the data into views, which are defined by the position of the columns. So the columns must be exactly the ones
+  # used in pretraining, in the same order
+  is_subtab <- identical(bundle$bundle_type, "subtab_bundle")
+
+  if (is_subtab && !identical(colnames(dataframe_cleaned), bundle$column_names)) {
+    missing_columns <- setdiff(bundle$column_names, colnames(dataframe_cleaned))
+    extra_columns <- setdiff(colnames(dataframe_cleaned), bundle$column_names)
+
+    stop("extract_features: the columns of the data are not the ones used to train this SubTab model. ",
+         if (length(missing_columns) > 0) paste0("Missing: ", paste(missing_columns, collapse = ", "), ". ") else "",
+         if (length(extra_columns) > 0) paste0("Not expected: ", paste(extra_columns, collapse = ", "), ". ") else "",
+         "If the categorical variables are one-hot encoded, check that the dummies are the same as in training.")
+  }
+
   dataset_ready <- create_tensor_dataset(dataframe_cleaned)
 
   dataloader_ready <- torch::dataloader(dataset_ready,
@@ -110,7 +124,22 @@ extract_features = function(
         x_batch <- batch[[1]]$to(device = device)
 
         # Forward pass
-        batch_latent <- fitted_encoder(x_batch)
+
+        # For subtab, first crop the views, encode each one and aggregate them.
+        # Others, the encoder takes the whole view
+
+        if (is_subtab) {
+          batch_latent <- subtab_extract_latent(
+            encoder = fitted_encoder,
+            x_batch = x_batch,
+            view_indices = bundle$view_indices,
+            aggregation = bundle$aggregation
+          )
+        } else {
+          batch_latent <- fitted_encoder(x_batch)
+        }
+
+
 
         # Store representations
         features_list[[length(features_list) + 1]] <- batch_latent$cpu()
@@ -135,6 +164,40 @@ extract_features = function(
   ))
 
 }
+
+
+
+
+
+#' Latent representation of a batch with Subtab
+#'
+#' The batch is cropped into the views stored at pretraining, every view goes through the (shared) encoder and the representations of the views of each sample are combined.
+#'
+#' @param encoder A trained \code{subtab_encoder} (in eval mode).
+#' @param x_batch A \code{torch_tensor} with the preprocessed batch. The columns must be the ones used in pretraining, in the same order.
+#' @param view_indices Indexes of the columns of each view, [n_views, view_width] (stored in the bundle).
+#' @param aggregation \code{Character}. How the views are combined. Only \code{"mean"} is available.
+#'
+#' @returns A \code{torch_tensor} [B, latent size].
+#' @noRd
+subtab_extract_latent <- function(encoder, x_batch, view_indices, aggregation = "mean") {
+
+  if (!identical(aggregation, "mean")) {
+    stop("subtab_extract_latent: only aggregation = 'mean' is available, but the bundle has '", aggregation, "'")
+  }
+
+  n_views <- nrow(view_indices)
+  batch_size <- x_batch$size(1)
+
+  views <- subtab_crop_views(x_batch, view_indices)  # [n_views * B, view_width]
+  z <- encoder(views)                                # [n_views * B, latent size]
+
+  # [n_views * B, h] -> [n_views, B, h] -> mean over the views -> [B, h]
+  torch::torch_mean(z$reshape(c(n_views, batch_size, -1)), dim = 1)
+}
+
+
+
 
 
 
